@@ -1,0 +1,4 @@
+#pragma once
+
+// Initialiseert de server en stelt de routes (URL's) in
+void initWebServer();

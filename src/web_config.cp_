@@ -1,0 +1,150 @@
+#include "web_config.h"
+#include "css_style.h"
+#include "global_data.h"
+#include "storage_logic.h"
+#include "web_pages.h"
+#include <ESPAsyncWebServer.h>
+
+AsyncWebServer server(80);
+
+String processor(const String &var)
+{
+    if (var == "STYLE")
+        return String(CSS_MAIN);
+    if (var == "SSID")
+        return state.network.ssid;
+    if (var == "PASS")
+        return state.network.pass;
+    if (var == "D_BR")
+        return String(state.display.day_brightness);
+    if (var == "LAT")
+        return String(state.env.lat, 4);
+    if (var == "LON")
+        return String(state.env.lon, 4);
+    if (var == "OWM_KEY")
+        return state.network.owm_key;
+    if (var == "WIFI_SYNC")
+        return (state.network.wifi_mode == 0) ? "checked" : "";
+    if (var == "WIFI_ON")
+        return (state.network.wifi_mode == 1) ? "checked" : "";
+    if (var == "WIFI_ECO")
+        return (state.network.wifi_mode == 2) ? "checked" : "";
+
+    if (var == "USER_NAME")
+        return state.user.name;
+    if (var == "USER_DOB")
+        return state.user.dob;
+    if (var == "LED_BR")
+        return String(state.display.led_brightness);
+    if (var == "LED_CHECKED")
+        return state.display.led_enabled ? "checked" : "";
+    if (var == "N_BR")
+        return String(state.display.night_brightness);
+    // En voor de richting (0 t/m 3):
+    if (var == "DIR_0")
+        return (state.display.transition_type == 0) ? "checked" : "";
+    if (var == "DIR_1")
+        return (state.display.transition_type == 1) ? "checked" : "";
+    if (var == "DIR_2")
+        return (state.display.transition_type == 2) ? "checked" : "";
+    if (var == "DIR_3")
+        return (state.display.transition_type == 3) ? "checked" : "";
+
+    if (var == "TR_SPEED")
+    {
+        // We sturen nu gewoon het getal (2 t/m 12) terug voor de slider value
+        return String(state.display.transition_speed);
+    }
+
+    // Voorbeeld logica voor de processor
+    long rssi = WiFi.RSSI();
+    String w1 = (rssi > -100) ? "on" : ""; // Altijd aan als er verbinding is
+    String w2 = (rssi > -80) ? "on" : "";
+    String w3 = (rssi > -70) ? "on" : "";
+    String w4 = (rssi > -60) ? "on" : "";
+    String w5 = (rssi > -50) ? "on" : "";
+
+    if (var == "W1")
+        return w1;
+    if (var == "W2")
+        return w2;
+    if (var == "W3")
+        return w3;
+    if (var == "W4")
+        return w4;
+    if (var == "W5")
+        return w5;
+
+    return String();
+}
+
+void initWebServer()
+{
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+    {
+        Serial.println(F("[WEB] Home pagina serveren via processor..."));
+
+        String html = String(INDEX_HTML);
+        
+        // 1. CSS Injectie (Essentieel!)
+        html.replace("%STYLE%", CSS_MAIN);
+
+        // 2. Netwerk & OWM
+        html.replace("%SSID%", state.network.ssid);
+        html.replace("%PASS%", state.network.pass);
+        html.replace("%OWM_KEY%", state.network.owm_key);
+        
+        // 3. Locatie (Let op de 4 decimalen)
+        html.replace("%LAT%", String(state.env.lat, 4));
+        html.replace("%LON%", String(state.env.lon, 4));
+
+        // 4. Display & WiFi Switch
+        html.replace("%D_BR%", String(state.display.day_brightness));
+        html.replace("%WIFI_CHECKED%", state.network.wifi_enabled ? "checked" : "");
+
+        // 5. Transitie Opties
+        String opts = "";
+        int speeds[] = { 10, 20, 30, 50, 100 };
+        for (int s : speeds) {
+            String sel = (state.display.transition_speed == s) ? " selected" : "";
+            opts += "<option value='" + String(s) + "'" + sel + ">" + String(s) + " ms</option>";
+        }
+        html.replace("%SPEED_OPTS%", opts);
+
+        request->send(200, "text/html", INDEX_HTML, processor); });
+    
+
+    // 2. SAVE ROUTE
+    server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request)
+              {
+        // Data verwerken (S.P.O.T.)
+        if (request->hasParam("ssid", true))        {state.network.ssid = request->getParam("ssid", true)->value();}
+        if (request->hasParam("pass", true))        {state.network.pass = request->getParam("pass", true)->value();}
+        if (request->hasParam("d_br", true))        {state.display.day_brightness = request->getParam("d_br", true)->value().toInt();}
+        if (request->hasParam("tr_speed", true))    {state.display.transition_speed = request->getParam("tr_speed", true)->value().toInt();}
+        if (request->hasParam("owm_key", true))     {state.network.owm_key = request->getParam("owm_key", true)->value();}
+        if (request->hasParam("lat", true))         {state.env.lat = request->getParam("lat", true)->value().toDouble();}
+        if (request->hasParam("lon", true))         {state.env.lon = request->getParam("lon", true)->value().toDouble();}
+        if (request->hasParam("user_name", true))   {state.user.name = request->getParam("user_name", true)->value();}
+        if (request->hasParam("user_dob", true))    {state.user.dob = request->getParam("user_dob", true)->value();}
+        if (request->hasParam("n_br", true))        {state.display.night_brightness = request->getParam("n_br", true)->value().toInt();}
+        if (request->hasParam("tr_dir", true))      {state.display.transition_type = request->getParam("tr_dir", true)->value().toInt();}
+        if (request->hasParam("led_br", true))      {state.display.led_brightness = request->getParam("led_br", true)->value().toInt();}
+        if (request->hasParam("led_en", true))      {state.display.led_enabled = request->getParam("led_en", true)->value().toInt();} // Checkbox: aanwezig is aan
+        if (request->hasParam("wifi_mode", true))   {state.network.wifi_mode = request->getParam("wifi_mode", true)->value().toInt();}  
+
+
+        saveNetworkConfig();
+        saveDisplaySettings();
+
+        // Stuur de schone herstart-pagina uit web_pages.h
+        String html = RESTART_HTML;
+        html.replace("%STYLE%", CSS_MAIN);
+        request->send(200, "text/html", RESTART_HTML, processor);
+
+        // Geplande herstart (S.P.O.T. timer in loop)
+        state.network.pending_restart = true;
+        state.network.restart_at = millis() + 1000; });
+
+    server.begin();
+}

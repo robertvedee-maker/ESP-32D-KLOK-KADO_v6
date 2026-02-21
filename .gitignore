@@ -1,0 +1,10 @@
+.pio
+.vscode
+.cache
+*.bak
+include/secret.h
+include/preview.html
+*.txt
+src/_copy-paste.cpp
+
+
