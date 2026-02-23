@@ -58,7 +58,7 @@ Leeftijd berekenLeeftijd(int gDag, int gMaand, int gJaar)
     // ... binnen de berekenLeeftijd functie ...
     float totaalDagen = (j * 365.25) + (m * 30.44) + d;
 
-    int variant = random(0, 10); // We breiden uit naar 10 smaken!
+    int variant = random(timeinfo.tm_sec % 13); // We breiden uit naar 13 smaken!
     String fact = "";
 
     if (variant == 0)
@@ -117,6 +117,28 @@ Leeftijd berekenLeeftijd(int gDag, int gMaand, int gJaar)
         long miljoenKnippers = (long)(totaalDagen * 24 * 60 * 17 / 1000000);
         fact = "JE HEBT JE OGEN AL " + String(miljoenKnippers) + " MILJOEN KEER DICHTGEKNIPPERD!";
     }
+    if (variant == 10)
+    {
+        // Atmosfeer / Lucht (Link met je BMP280 passie)
+        long miljoenLiter = (long)(totaalDagen * 11.000 / 1000.0); // We rekenen in duizenden liters
+        fact = "JE HEBT AL " + String(miljoenLiter) + " DUIZEND LITER LUCHT INGEADEMD!";
+    }
+    else if (variant == 11)
+    {
+        // Lichtreiziger (Zon-calculatie link)
+        // Licht reist ~26 miljard km per dag. 
+        long miljardKmLicht = (long)(totaalDagen * 25.9); 
+        fact = "ZONLICHT HEEFT SINDS JE GEBOORTE " + String(miljardKmLicht) + " MILJARD KM GEREISD!";
+    }
+    else if (variant == 12)
+    {
+        // De Haar-fabriek (De favoriet!)
+        // Gemiddeld 0.35mm per dag per haar. 
+        // Bij 100.000 haren is dat 35 meter per dag in totaal!
+        long kmHaar = (long)(totaalDagen * 35.0 / 1000.0);
+        fact = "JE HEBT IN TOTAAL AL " + String(kmHaar) + " KILOMETER HAAR GEPRODUCEERD!";
+    }
+
 
     return {j, m, d, fact};
 }

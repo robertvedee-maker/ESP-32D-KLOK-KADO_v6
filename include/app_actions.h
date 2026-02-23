@@ -22,7 +22,6 @@
 #include "helpers.h"            // Voor setupDisplay, updateClock, etc.
 #include "leeftijd_calc.h"      // Voor het berekenen van leeftijd en ongewone weetjes op basis van geboortedatum
 #include "network_logic.h"      // Voor WiFi en OTA setup
-#include "paneel_logic.h"       // Voor het beheren van de data-panelen en de overgangen daartussen
 #include "secret.h"             // Voor WiFi credentials
 #include "storage_logic.h"      // Voor NVS opslag
 #include "weather_logic.h"      // Voor OWM data
@@ -58,6 +57,10 @@ namespace App
 
     // display_logic.h
     void updateTickerSegments(); // Vult state.ticker_segments
+   void performTransition();          // Voert een overgang uit tussen twee sprites (voor panelwissels)
+    void updateDataPaneelVandaag();     // Update het 'vandaag' data-paneel
+    void updateDataPaneelForecast();    // Update het 'forecast' data-paneel
+    void showSetupInstructionPanel();   // Toont een instructie-paneel (zoals tijdens setup of als er geen data is)
 
     // env_sensors.h
     bool setupSensors();  // Initialiseer de sensoren (BME/AHT)
@@ -98,12 +101,6 @@ namespace App
     void activateWiFiAndServer();   // Activeer WiFi en webserver (voor normale werking)
     void deactivateWiFiAndServer(); // Deactiveer WiFi en webserver (voor eco-mode)
     void manageServerTimeout();      // Beheer de timeout voor de webserver (om te voorkomen dat deze te lang actief blijft na setup)
-
-    // paneel_logic.h
-    void performTransition();          // Voert een overgang uit tussen twee sprites (voor panelwissels)
-    void updateDataPaneelVandaag();     // Update het 'vandaag' data-paneel
-    void updateDataPaneelForecast();    // Update het 'forecast' data-paneel
-    void showSetupInstructionPanel();   // Toont een instructie-paneel (zoals tijdens setup of als er geen data is)
 
     // storage_logic.h
     void initStorage();       // Initialiseer de NVS opslag

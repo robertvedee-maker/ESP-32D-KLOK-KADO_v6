@@ -12,6 +12,7 @@ namespace Config {
     
     // --- 1. HARDWARE PINNEN ---
     constexpr int pin_backlight = TFT_BL;
+    constexpr int pin_OneWire = 32; // GPIO32 voor DS18B20 (OneWire bus)
 
     // --- 2. LAYOUT S.P.O.T. (Afmetingen) ---
     // Hier stel je de basis in. Verander je dit? Dan verandert de rest mee.
@@ -50,7 +51,7 @@ namespace Config {
     constexpr int brightness_night = 20;
     constexpr int fade_duration = 1000; // ms
     constexpr int solar_fade_minutes = 60; // min
-    constexpr int default_transition_speed = 30; // ms
+    constexpr int default_transition_speed = 15; // ms
     constexpr int default_transition_type = 1 ; // 0 = slide left, 1 = slide right, 2 = slide up, 3 = slide down, 4 = none
 
     // --- 5. OVERIGE INSTELLINGEN ---

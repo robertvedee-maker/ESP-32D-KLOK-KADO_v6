@@ -17,9 +17,9 @@ void setupDisplay();
 void updateDisplayBrightness(int level);
 void updateClock(); // Tekent de wijzers.
 
-void updatePaneelvandaag(); // Tekent de data voor vandaag in het datSpr paneel
-void updatePaneelmorgen(); // Tekent de data voor morgen in het datSpr2 panel
-void updateTicker(); // Tekent de data in het ticker paneel
+// void updatePaneelvandaag(); // Tekent de data voor vandaag in het datSpr paneel
+// void updatePaneelmorgen(); // Tekent de data voor morgen in het datSpr2 panel
+// void updateTicker(); // Tekent de data in het ticker paneel
 
 // 3. Teken-helpers (De "Vakmannen")
 void drawSetupModeActive();
@@ -34,6 +34,6 @@ int getBeaufort(float ms);
 String getWindRoos(int graden);
 
 void handleHardware();          // voor touch en LED logica
-void handleTouchToggle();       // Alleen de touch logica, zodat we die apart kunnen aanroepen indien nodig
+// void handleTouchToggle();       // Alleen de touch logica, zodat we die apart kunnen aanroepen indien nodig
 void manageStatusLed();         // Voor het beheren van de LED-status op basis van de huidige staat
 // void testTouchMetFeedback(); // Een testfunctie die je kunt gebruiken om de touch-gevoeligheid en feedback te testen zonder de volledige toggle-logica

@@ -11,13 +11,13 @@
 // Forward declaration
 void updateDisplayBrightness(int pwm);
 
-void updateDateTimeStrings(struct tm* timeinfo)
+void updateDateTimeStrings(struct tm *timeinfo)
 {
     snprintf(state.env.current_time_str, sizeof(state.env.current_time_str),
-        "%02d:%02d:%02d", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+             "%02d:%02d:%02d", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
 
     snprintf(state.env.current_date_str, sizeof(state.env.current_date_str),
-        "%02d-%02d-%04d", timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year + 1900);
+             "%02d-%02d-%04d", timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year + 1900);
 }
 
 void manageTimeFunctions()
@@ -59,21 +59,51 @@ void manageBrightness()
     int nacht = state.display.night_brightness;
     int target_pwm = state.display.backlight_pwm;
 
-    // Gebruik solar_fade_minutes (60) in plaats van de 1000ms
-   if (nu >= op && nu < (op + Config::solar_fade_minutes)) {
-        target_pwm = map(nu, op, op + Config::solar_fade_minutes, nacht, dag);
+    // Gebruik solar_fade_minutes (60) om een overgangsperiode van 1 uur te creëren rondom zonsopkomst en zonsondergang
+    // Binnen deze periode passen we de helderheid geleidelijk aan van nacht naar dag of omgekeerd
+    // We controleren eerst of we in de overgangsperiode zitten, en zo ja, 
+    // berekenen we de target_pwm op basis van hoe ver we in die periode zitten (gebruikmakend van de map() functie om een lineaire overgang te creëren).
+    if (nu >= (op - Config::solar_fade_minutes) && nu < op)
+    {
+        target_pwm = map(nu, op - Config::solar_fade_minutes, op, nacht, dag);
         state.env.is_night_mode = false; // We zijn aan het opstaan (Dag-modus)
-    } else if (nu >= onder && nu < (onder + Config::solar_fade_minutes)) {
+        Serial.println("[Brightness] Overgang naar DAG-modus (Zon gaat op)");
+    }
+    else if (nu >= onder && nu < (onder + Config::solar_fade_minutes))
+    {
         target_pwm = map(nu, onder, onder + Config::solar_fade_minutes, dag, nacht);
-        state.env.is_night_mode = true;  // De zon gaat onder (Nacht-modus start)
-    } else {
-        if (nu >= (op + Config::solar_fade_minutes) && nu < onder) {
+        state.env.is_night_mode = false; // De zon gaat onder (Nacht-modus start)
+        Serial.println("[Brightness] Overgang naar NACHT-modus (Zon gaat onder)");
+    }
+    else
+    {
+        if (nu >= (op) && nu < onder + Config::solar_fade_minutes)
+        {
             target_pwm = dag;
             state.env.is_night_mode = false; // Volle dag
-        } else {
-            target_pwm = nacht;
-            state.env.is_night_mode = true;  // HIER: Nu staat hij ook echt op nacht!
+            Serial.println("[Brightness] Volle DAG-modus actief");
         }
+        else
+        {
+            target_pwm = nacht;
+            state.env.is_night_mode = true; // HIER: Nu staat hij ook echt op nacht!
+            Serial.println("[Brightness] Volle NACHT-modus actief");
+        }
+    }
+
+    // Gebruik de status uit de state voor de injectie
+    if (state.env.health == HEALTH_CRITICAL)
+    {
+        target_pwm = min(target_pwm, 15);
+    }
+    else if (state.env.health == HEALTH_WARNING)
+    {
+        target_pwm = target_pwm / 2;
+    }
+
+    if (target_pwm != state.display.backlight_pwm)
+    {
+        updateDisplayBrightness(target_pwm);
     }
 
     // Serial.printf("[Brightness] Nu: %02d:%02d, Op: %02d:%02d, Onder: %02d:%02d, Target PWM: %d\n",
@@ -84,7 +114,8 @@ void manageBrightness()
     // Serial.printf(state.env.is_night_mode ? "[Brightness] Huidige modus: NACHT\n" : "[Brightness] Huidige modus: DAG\n");
 
     // Gebruik de berekende target_pwm om de hardware aan te sturen
-    if (target_pwm != state.display.backlight_pwm) {
+    if (target_pwm != state.display.backlight_pwm)
+    {
         // Alleen de functie aanroepen, de functie zelf werkt de state bij!
         updateDisplayBrightness(target_pwm);
     }

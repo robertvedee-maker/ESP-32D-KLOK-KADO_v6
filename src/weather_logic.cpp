@@ -23,8 +23,7 @@ void manageWeatherUpdates() {
     static unsigned long lastMinuteCheck = 0;
     unsigned long nuMillis = millis();
 
-    // 1. DE HARDER POORT: Geen uitzonderingen! 
-    // We kijken ELKE 60 seconden. Punt.
+    // 1. DE HARDE POORT: Geen uitzonderingen! We kijken ELKE 60 seconden. Punt.
     if (nuMillis - lastMinuteCheck < 60000) {
         return; 
     }
@@ -38,7 +37,7 @@ void manageWeatherUpdates() {
 
     // 4. DE UITVOERING
     if (moetNuUpdaten) {
-        Serial.println(F("[WEATHER] Start update proces..."));
+        // Serial.println(F("[WEATHER] Start update proces..."));
         
         // WiFi check
         if (WiFi.status() != WL_CONNECTED) {
@@ -59,55 +58,13 @@ void manageWeatherUpdates() {
                 Serial.println(F("[WEATHER-MGMT] Fetch mislukt, probeer over 1 minuut opnieuw."));
             }
         }
-    } else {
-        // Alleen 1x per minuut deze melding, heel rustig.
-        Serial.println(F("[WEATHER] Geen update nodig op dit moment."));
-    }
+    } 
 }
-
-// void manageWeatherUpdates() {
-//     static unsigned long lastMinuteCheck = 0;
-
-//     // We checken de voorwaarden slechts elke minuut om de CPU te ontlasten
-//     if (millis() - lastMinuteCheck < 60000) return;
-//     lastMinuteCheck = millis();
-
-//     // 1. Vraag aan fetchWeather: "Zou je nu willen updaten als je kon?"
-//     // We gebruiken de 'checkOnly' modus die we eerder hebben besproken.
-//     if (fetchWeather(true)) { 
-//         Serial.println(F("[WEATHER-MGMT] Tijdslot bereikt. WiFi voorbereiden..."));
-        
-//         // 2. WiFi activeren als dat nodig is
-//         if (WiFi.status() != WL_CONNECTED) {
-//             setupWiFi(); 
-//             unsigned long startWait = millis();
-//             // Wacht op verbinding (met yield voor achtergrondtaken)
-//             while (WiFi.status() != WL_CONNECTED && millis() - startWait < 10000) {
-//                 delay(50); 
-//                 yield();
-//             }
-//         }
-
-//         // 3. De daadwerkelijke fetch uitvoeren
-//         if (WiFi.status() == WL_CONNECTED) {
-//             fetchWeather(false); // Doe de echte update (checkOnly = false)
-//         }
-        
-//         // De handleWiFiEco() in de loop zorgt hierna weer voor de stand-by stand
-//     }
-// }
 
 
 bool fetchWeather(bool checkOnly)
 {
-     
     // 1. VOORWAARDEN CHECK
-    // Serial.print(F("[WEATHER] Check Key: "));
-    // Serial.println(state.network.owm_key);
-    // Serial.print(F("[WEATHER] Lengte: "));
-    // Serial.println(state.network.owm_key.length());
-
-    // Versoepelde check: we laten alles door wat langer is dan 10 tekens
     if (state.network.owm_key.length() < 10)
     {
         Serial.println(F("[WEATHER] Afgebroken: API Key te kort of leeg."));

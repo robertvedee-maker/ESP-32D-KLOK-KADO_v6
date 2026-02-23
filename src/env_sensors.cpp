@@ -9,10 +9,23 @@
 #include <Adafruit_AHTX0.h>
 #include <Adafruit_BMP280.h>
 #include <Wire.h>
+#include <WiFi.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 // Instanties
 Adafruit_AHTX0 aht;
 Adafruit_BMP280 bmp;
+
+// // We maken een globale 'handle' aan die alleen in dit bestand zichtbaar is
+// static temperature_sensor_handle_t temp_sensor = NULL;
+// Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
+OneWire oneWire(Config::pin_OneWire); // GPIO32 voor DS18B20
+
+// Pass our oneWire reference to Dallas Temperature.
+DallasTemperature sensors(&oneWire);
+
+
 
 // // Lokale buffer voor het hoogte-filter (10 metingen)
 static float hoogte_buffer[10];
@@ -22,6 +35,7 @@ static bool buffer_vol = false;
 // Status flags om crashes te voorkomen
 static bool aht_ok = false;
 static bool bmp_ok = false;
+static bool ds18b20_ok = false;
 
 bool setupSensors()
 {
@@ -52,10 +66,10 @@ bool setupSensors()
 
         // Optioneel: BMP instellingen voor betere stabiliteit
         bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,
-                        Adafruit_BMP280::SAMPLING_X2,  // Temperatuur
-                        Adafruit_BMP280::SAMPLING_X16, // Druk
-                        Adafruit_BMP280::FILTER_X16,
-                        Adafruit_BMP280::STANDBY_MS_500);
+                        Adafruit_BMP280::SAMPLING_X1, // Temperatuur
+                        Adafruit_BMP280::SAMPLING_X2, // Druk
+                        Adafruit_BMP280::FILTER_OFF,
+                        Adafruit_BMP280::STANDBY_MS_1000);
     }
     else
     {
@@ -63,11 +77,44 @@ bool setupSensors()
         Serial.println("[SENSOR] BMP280 niet gevonden!");
     }
 
-    return (aht_ok || bmp_ok); // True als er tenminste één sensor werkt
+    // 4. DS18B20 Initialisatie
+    sensors.begin();
+    if (sensors.getDeviceCount() > 0)
+    {
+        sensors.setWaitForConversion(false); // CRUCIAAL: Dit zet de asynchrone modus aan
+        sensors.requestTemperatures();       // Geef alvast de allereerste opdracht
+        ds18b20_ok = true;
+        Serial.println("[SENSOR] DS18B20 OK");
+    }
+    else
+    {
+        ds18b20_ok = false;
+        Serial.println("[SENSOR] DS18B20 niet gevonden!");
+    }
+
+    return (aht_ok || bmp_ok || ds18b20_ok); // True als er tenminste één sensor werkt
 }
 
 void handleSensors()
 {
+   // 0. DS18B20: Interne Behuizing Temperatuur (Asynchroon)
+    if (ds18b20_ok)
+    {
+        // Haal de waarde op die de VORIGE ronde (10 sec geleden) is aangevraagd
+        float current_case_temp = sensors.getTempCByIndex(0);
+
+        // Alleen updaten als de meting valide is (-127.0 is fout)
+        if (current_case_temp != DEVICE_DISCONNECTED_C)
+        {
+            state.env.case_temp = current_case_temp;
+        }
+
+        // Geef DIRECT de opdracht voor de VOLGENDE meting. 
+        // Dankzij 'setWaitForConversion(false)' in setup duurt dit < 1ms.
+        sensors.requestTemperatures();
+    }
+
+
     // 1. AHT20: Temperatuur en Luchtvochtigheid
     if (aht_ok)
     {
@@ -82,8 +129,15 @@ void handleSensors()
     // 2. BMP280: Druk en Hoogte
     if (bmp_ok)
     {
-        // 1. Directe meting voor clock display
-        state.env.press_local = bmp.readPressure() / 100.0F; // hPa
+        // FORCEER één meting
+        bmp.takeForcedMeasurement();
+
+        // Haal de waarden op (deze gebruiken nu de data van de forced measurement)
+        float raw_pressure = bmp.readPressure() / 100.0F;
+        state.env.press_local = raw_pressure;
+
+        // // 1. Directe meting voor clock display
+        // state.env.press_local = bmp.readPressure() / 100.0F; // hPa
 
         // Bereken hoogte (gebruik 1013.25 als referentie)
         float current_alt = bmp.readAltitude(1013.25);
@@ -95,8 +149,8 @@ void handleSensors()
         // 1. Statics voor stabiliteit
         static float laatste_valide_raw = 0;
         static int getoonde_int_hoogte = -999;
-        static unsigned long start_tijd = millis();
-        bool opgewarmd = (millis() - start_tijd > 45000); // 45 sec opwarmtijd
+        // static unsigned long start_tijd = millis();
+        // bool opgewarmd = (millis() - start_tijd > 45000); // 45 sec opwarmtijd
 
         // 2. Ruwe meting
         float ref_druk = (state.weather.pressure > 800) ? state.weather.pressure : 1013.25;
@@ -104,7 +158,7 @@ void handleSensors()
 
         // 3. Delta-check (Glitch filter)
         float delta = abs(rauwe_hoogte - laatste_valide_raw);
-        if (opgewarmd && laatste_valide_raw != 0 && delta > 80.0)
+        if (/*opgewarmd &&*/ laatste_valide_raw != 0 && delta > 80.0)
         {
             // Sprong van > 80m in 1 sec negeren we (Glitch)
             return;
@@ -129,7 +183,7 @@ void handleSensors()
         // Update de string alleen als:
         // - We zijn opgewarmd EN de buffer vol is
         // - EN de wijziging >= 2 meter is (Deadband)
-        if (opgewarmd && buffer_vol)
+        if (/*opgewarmd &&*/ buffer_vol)
         {
             if (abs(afgeronde_hoogte - getoonde_int_hoogte) >= 2 || getoonde_int_hoogte == -999)
             {
@@ -145,8 +199,8 @@ void handleSensors()
             state.weather.height_str = "0";
         }
     }
-        // Serial.printf("[SENSOR] Temp: %.1f C, Hum: %.1f %%, Press: %.1f hPa, Alt: %.1f m\n",
-        //               state.env.temp_local, state.env.hum_local, state.env.press_local, state.env.altitude_local);
+    // Serial.printf("[SENSOR] Temp: %.1f C, Hum: %.1f %%, Press: %.1f hPa, Alt: %.1f m\n",
+    //               state.env.temp_local, state.env.hum_local, state.env.press_local, state.env.altitude_local);
 }
 
 // void updateSensors()
@@ -175,4 +229,25 @@ void handleSensors()
 
 //     Serial.printf("[SENSOR] Temp: %.1f C, Hum: %.1f %%, Press: %.1f hPa, Alt: %.1f m\n",
 //                   state.env.temp_local, state.env.hum_local, state.env.press_local, state.env.altitude_local);
+// }
+
+// bool setupInternalTempSensor() {
+//     temperature_sensor_config_t temp_sensor_config = {
+//         .range_min = 10,
+//         .range_max = 80,
+//     };
+//     // Initialiseer de sensor
+//     ESP_ERROR_CHECK(temperature_sensor_install(&temp_sensor_config, &temp_sensor));
+//     // Start de sensor
+//     ESP_ERROR_CHECK(temperature_sensor_enable(temp_sensor));
+//     return true;
+// }
+
+// void updateInternalSensors() {
+//     float tsens_out;
+//     if (temp_sensor != NULL) {
+//         // Lees de waarde in Celsius
+//         ESP_ERROR_CHECK(temperature_sensor_get_celsius(temp_sensor, &tsens_out));
+//         state.env.cpu_temp = tsens_out;
+//     }
 // }

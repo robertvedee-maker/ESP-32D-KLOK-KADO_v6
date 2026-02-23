@@ -1,19 +1,6 @@
 /*
  * (c)2026 R van Dorland - Licensed under MIT License
- * Helper functies en display setup (zoals het tekenen van de panelen, het beheren van de backlight, etc.)
- * 
- * Deze file bevat functies die worden gebruikt door meerdere onderdelen van de app, 
- * zoals het tekenen van de klok, het tekenen van de data panelen, het tekenen van de ticker, 
- * en het beheren van de backlight.
- * 
- * We hebben ervoor gekozen om deze functies in een aparte file te zetten om de code beter te organiseren en de andere files overzichtelijk te houden.
- * 
- * In deze file staan ook de functies voor het opzetten van de WiFi-verbinding en het beheren van de eco-mode, 
- * omdat die nauw verbonden zijn met de netwerkstatus die we in de centrale 'state' struct bijhouden.
- * 
- * Op deze manier kunnen we de netwerk-gerelateerde functies gescheiden houden van de display-logica, 
- * terwijl we toch een centrale plek hebben voor alle 'helper' functies die door de app worden gebruikt.
- */
+*/
 
 #include "helpers.h"
 #include "config.h" // Toegevoegd voor Config:: pinnen en waarden
@@ -30,16 +17,17 @@
 #include "network_logic.h"
 #include "web_config.h"
 
-// 1. Hardware instanties (MOETEN hier gedefinieerd worden)
-TFT_eSPI tft = TFT_eSPI();
-TFT_eSprite clkSpr = TFT_eSprite(&tft);
-TFT_eSprite datSpr = TFT_eSprite(&tft);
-TFT_eSprite datSpr2 = TFT_eSprite(&tft);
-TFT_eSprite tckSpr = TFT_eSprite(&tft);
+// // 1. Hardware instanties (MOETEN hier gedefinieerd worden)
+// TFT_eSPI tft = TFT_eSPI();
+// TFT_eSprite clkSpr = TFT_eSprite(&tft);
+// TFT_eSprite datSpr = TFT_eSprite(&tft);
+// TFT_eSprite datSpr2 = TFT_eSprite(&tft);
+// TFT_eSprite tckSpr = TFT_eSprite(&tft);
 
 extern SystemState state; // Voor toegang tot de centrale 'state' struct
 
-// 3. Helper functies (De "Vakmannen")
+// 3. Helper functies voor het omzetten van data naar tekst of symbolen
+
 String getWindRoos(int graden)
 {
     const char *roos[] = {"N", "NNO", "NO", "ONO", "O", "OZO", "ZO", "ZZO", "Z", "ZZW", "ZW", "WZW", "W", "WNW", "NW", "NNW"};
@@ -81,13 +69,10 @@ String getWindRoos(int graden);
 void updateDataPaneelVandaag();
 void updateDataPaneelForecast();
 void updateTickerSegments();
-void setupWiFi();
-void handleWiFiEco();
 
 // Voeg dit toe onderaan je helpers.cpp als tijdelijke fix:
 uint16_t getIconColor(int conditionCode)
-{
-    // Simpele mapping van OpenWeatherMap codes naar kleuren
+{    // Simpele mapping van OpenWeatherMap codes naar kleuren
     if (conditionCode >= 200 && conditionCode < 300)
         return TFT_SILVER; // Onweer
     if (conditionCode >= 300 && conditionCode < 600)
@@ -102,7 +87,6 @@ uint16_t getIconColor(int conditionCode)
 // --- INITIALISATIE ---
 
 //          --- DISPLAY SETUP FUNCTIE ---
-
 void setupDisplay()
 {
     // 1. Hardware onderdrukking (Dark Boot)
@@ -166,12 +150,9 @@ void updateDisplayBrightness(int level)
         hardware_initialized = true;
         return;
     }
-
     // Als de hardware al op dit niveau staat, doen we niets
     if (delta == 0)
         return;
-
-    // Serial.printf("[PWM] Update: %d (Was: %d, Delta: %d)\n", level, actual_hardware_level, delta);
 
     // SITUATIE 1: Grote sprong -> Fade
     if (delta > 10)
@@ -285,7 +266,6 @@ void updateDataPaneelVandaag()
     drawWifiIndicator(146, 130, 13);
     drawISOAlert(120, 125, 18, 0, state.env.is_alert_active);
 
-
     // --- 5. DE RELATIEVE HORIZON ---
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo))
@@ -303,13 +283,15 @@ void updateDataPaneelVandaag()
     int xOp = tlX_center + (int)(distOp * pixelsPerUur);
     int xOnder = tlX_center + (int)(distOnder * pixelsPerUur);
 
-    if (xOp > 0 && xOp < 170) {
+    if (xOp > 0 && xOp < 170)
+    {
         datSpr.fillCircle(xOp, tlY + 1, 4, TFT_YELLOW);
         datSpr.setTextDatum(BC_DATUM);
         datSpr.setTextFont(1);
         datSpr.drawString(String(state.env.sunrise_str), xOp, tlY - 5);
     }
-    if (xOnder > 0 && xOnder < 170) {
+    if (xOnder > 0 && xOnder < 170)
+    {
         datSpr.fillCircle(xOnder, tlY + 1, 4, TFT_GOLD);
         datSpr.setTextDatum(BC_DATUM);
         datSpr.setTextFont(1);
@@ -330,12 +312,13 @@ void updateDataPaneelForecast()
     datSpr2.fillSprite(TFT_BLACK); // We gebruiken datSpr voor beide panelen
     datSpr2.setTextColor(TFT_WHITE, TFT_BLACK);
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++)
+    {
         int yPos = i * 50;
-        auto& f = state.weather.forecast[i];
+        auto &f = state.weather.forecast[i];
 
         time_t rawtime = (time_t)f.dt;
-        struct tm* ti = localtime(&rawtime);
+        struct tm *ti = localtime(&rawtime);
 
         char datumBuf[12];
         strftime(datumBuf, sizeof(datumBuf), "%d-%m", ti); // "28-01"
@@ -362,8 +345,6 @@ void updateDataPaneelForecast()
         datSpr2.drawString(f.description, 165, yPos + 30);
 
         drawWeatherIcon(datSpr2, 40, yPos + 5, 40, f.icon_id, true);
-        // const unsigned char* bitmap = getIcon40(f.icon_id, !state.env.is_night_mode);
-        // datSpr.drawBitmap(65, yPos + 5, bitmap, 40, 40, TFT_WHITE);
 
         if (i < 2)
             datSpr2.drawFastHLine(0, yPos + 49, 170, 0x2104);
@@ -371,21 +352,22 @@ void updateDataPaneelForecast()
 }
 
 //          --- NETWERK INFO PANELS ---
-void showSetupInstructionPanel() {
+void showSetupInstructionPanel()
+{
     datSpr.fillSprite(TFT_BLACK);
     datSpr.setTextColor(TFT_GOLD);
     datSpr.setTextDatum(MC_DATUM); // Midden-gecentreerd
-    
-    datSpr.drawString("WEER SETUP NODIG", datSpr.width()/2, 20, 2);
-    
+
+    datSpr.drawString("WEER SETUP NODIG", datSpr.width() / 2, 20, 2);
+
     datSpr.setTextColor(TFT_WHITE);
-    datSpr.drawString("Ga naar:", datSpr.width()/2, 50, 2);
+    datSpr.drawString("Ga naar:", datSpr.width() / 2, 50, 2);
     datSpr.setTextColor(TFT_SKYBLUE);
-    datSpr.drawString(WiFi.localIP().toString(), datSpr.width()/2, 75, 4);
-    
+    datSpr.drawString(WiFi.localIP().toString(), datSpr.width() / 2, 75, 4);
+
     datSpr.setTextColor(TFT_WHITE);
-    datSpr.drawString("en voer je API key in", datSpr.width()/2, 110, 2);
-    
+    datSpr.drawString("en voer je API key in", datSpr.width() / 2, 110, 2);
+
     datSpr.pushSprite(Config::data_x, Config::data_y);
     delay(100); // Korte pauze om te voorkomen dat dit te snel hertekent
 }
@@ -406,10 +388,11 @@ void toonNetwerkInfo()
     tft.drawString("IP: " + WiFi.localIP().toString(), 140, 80);
 
     delay(3000);
-    // tft.fillScreen(TFT_BLACK);
+    tft.fillScreen(TFT_BLACK);
 }
 
-void drawSetupModeActive(){
+void drawSetupModeActive()
+{
     // Opstart scherm voor Setup Mode
     tft.fillScreen(TFT_BLACK);
     tft.drawRoundRect(2, 2, tft.width() - 4, tft.height() - 4, 10, TFT_GOLD);
@@ -524,18 +507,14 @@ void drawWifiIndicator(int x, int y, int h)
         }
     }
     else
-    {
-        // --- STATUS: UIT ---
+    {    // --- STATUS: UIT ---
         uint16_t statusColor;
-
         if (state.network.wifi_mode == 1)
-        {
-            // Mode: On-Demand (Wacht op update slot)
+        {   // Mode: On-Demand (Wacht op update slot)
             statusColor = standbyGreen;
         }
         else
-        {
-            // Mode: Eco-Nacht of uit
+        {    // Mode: Eco-Nacht of uit
             statusColor = state.env.icon_base_color;
         }
 
@@ -624,13 +603,11 @@ void handleHardware()
     if (state.env.is_alert_active)
     {
         if (state.env.alert_muted)
-        {
-            // Muted: Subtiel 'hartslag' effect (knippert heel kort elke 3 seconden)
+        {    // Muted: Subtiel 'hartslag' effect (knippert heel kort elke 3 seconden)
             digitalWrite(2, (millis() % 3000 < 50));
         }
         else
-        {
-            // Actief: Opvallend knipperen (Safety Car tempo)
+        {    // Actief: Opvallend knipperen (Safety Car tempo)
             digitalWrite(2, (millis() % 1000 < 500));
         }
     }
@@ -649,7 +626,7 @@ void handleTouchLadder()
     static bool stage2Triggered = false;
 
     if (touchVal < 55)
-    {   // AANRAKING DETECTEERD
+    { // AANRAKING DETECTEERD
         // Teken een klein oranje/geel cirkeltje rechtsboven de analoge klok om visuele feedback te geven dat we een aanraking detecteren (en dat de ladder actief is)
         tft.fillCircle(145, 7, 4, TFT_GOLD);
         // Serial.printf("[TOUCH] Aanraking gedetecteerd (waarde: %d)\n", touchVal);
@@ -665,7 +642,7 @@ void handleTouchLadder()
 
         unsigned long duration = millis() - touchStart;
 
-        // FEEDBACK FASE 1 (0-2 sec): Rustig knipperen 
+        // FEEDBACK FASE 1 (0-2 sec): Rustig knipperen
         if (duration < 2000)
         {
             digitalWrite(2, (millis() % 400 < 200));
@@ -720,15 +697,16 @@ void handleTouchLadder()
             stage2Triggered = false;
             touchStart = 0;
             state.env.is_touching = false; // Update de centrale state voor de touch status
-        }   
+        }
     }
 }
 
 // even kijken of we dit nog nodig hebben of gebruiken om de status van handleTouchLadder te ondersteunen
 void manageStatusLed()
 {
-    if (state.env.is_touching) return;
-    
+    if (state.env.is_touching)
+        return;
+
     if (state.network.web_server_active)
     {
         // De server is actief: LED aan, maar elke 5 sec (5000ms) een flits van 100ms uit
@@ -757,3 +735,13 @@ void manageAlertTimeout()
     }
 }
 
+void evaluateSystemSafety() {
+    // Hier bepalen we de status op basis van de CPU temp (en eventueel later andere sensoren)
+    if (state.env.case_temp > 65.0) {
+        state.env.health = HEALTH_CRITICAL;
+    } else if (state.env.case_temp > 55.0) {
+        state.env.health = HEALTH_WARNING;
+    } else {
+        state.env.health = HEALTH_OK;
+    }
+}

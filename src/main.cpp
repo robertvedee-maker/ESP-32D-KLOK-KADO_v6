@@ -22,14 +22,14 @@
 #include <time.h>
 #include <WiFi.h>
 
-void setupWiFi();
 void updateTickerSegments();
 void renderTicker();
 void manageDataPanels();
 void showSetupInstructionPanel();
-void handleWiFiEco();
 void handleTouchLadder();
 void manageStatusLed();
+bool setupInternalTempSensor();
+void updateInternalSensors();
 
 unsigned long lastWeatherUpdate = 0;
 unsigned long lastSensorUpdate = 0;
@@ -72,24 +72,21 @@ void setup()
     Serial.println("Injectie voltooid! Vergeet deze regels later niet te verwijderen.");
     // --- EINDE INJECTIE ---
 
-    // 1. DIRECTE DARK BOOT (Pin naar LOW om flitsen te voorkomen)
-    // Dit staat waarschijnlijk al in je initDisplay()
+    // DISPLAY START
     setupDisplay();
-
-    // 2. STORAGE LADEN (De allerbelangrijkste stap nu!)
-    // Vult state met SSID, wachtwoord en helderheid uit NVS
+    // STORAGE START (Vroeger, zodat we direct de opgeslagen helderheid kunnen laden)
     initStorage();
 
-    // 2. SENSOR START (Nieuwe plek!)
+    // SENSOR START 
     if (setupSensors())
     {
         handleSensors(); // Doe direct de eerste meting
     }
 
-    // 2. WiFi Setup (gebruikt waarschijnlijk je eigen methode)
+    // WiFi Setup 
     setupWiFi();
 
-    // 3. Tijd configureren (NTP)
+    // Tijd configureren (NTP)
     configTzTime(SECRET_TZ_INFO, SECRET_NTP_SERVER);
 
     if (prefs.begin("config", true))
@@ -105,17 +102,16 @@ void setup()
         Serial.println(F("[DEBUG] FOUT: Kon Preferences 'config' niet openen!"));
     }
 
-    // 4. Eerste berekeningen
+    // Eerste berekeningen
     manageTimeFunctions(); // Bepaalt zon-tijden en vult state.env
     fetchWeather();        // Haalt OWM data en vult state.weather
 
-    // 5. Initialiseer Ticker voor de eerste keer
+    // Initialiseer Ticker voor de eerste keer
     updateTickerSegments();
 
     Serial.println(F("--- Systeem Start Voltooid ---"));
 
-    // 3. HELDERHEID TOEPASSEN (Hardware-fade naar de geladen waarde)
-    // We gebruiken nu de waarde die initStorage() net in state heeft gezet
+    // HELDERHEID TOEPASSEN (Hardware-fade naar de geladen waarde)
     updateDisplayBrightness(state.display.day_brightness);
 
     // // Preferences prefs;
@@ -152,7 +148,7 @@ void loop()
     //     bool ota_enabled = true; // Voor nu op true, later wordt dit false bij boot
     // };
 
-    // // 1. Alleen OTA afhandelen als de vlag aan staat
+    // // Alleen OTA afhandelen als de vlag aan staat
     // if (state.network.ota_enabled) {
     //     ArduinoOTA.handle();
     // }
@@ -243,9 +239,13 @@ void loop()
     //     ESP.restart();
     // }
 
-
-    // --- DEBUG: Toon vrije RAM in KB ---
+    // --- DEBUG: Toon CPU temperatuur rechtsonder ---
     tft.setTextFont(1); 
     tft.setTextColor(TFT_DARKGREEN, TFT_BLACK);
-    tft.drawNumber(ESP.getFreeHeap() / 1024, 5, 140); // Toont vrije KB's
+    tft.drawFloat(state.env.case_temp, 1, 5, 140); // Voor debug: Case temp
+
+    // --- DEBUG: Toon vrije RAM in KB ---
+    // tft.setTextFont(1); 
+    // tft.setTextColor(TFT_DARKGREEN, TFT_BLACK);
+    // tft.drawNumber(ESP.getFreeHeap() / 1024, 5, 140); // Toont vrije KB's
 }
