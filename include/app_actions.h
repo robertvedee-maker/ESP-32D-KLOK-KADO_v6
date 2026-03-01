@@ -70,7 +70,7 @@ namespace App
     void setupDisplay();            // Initialiseer het display en de sprites
     void updateDisplayBrightness(); // Pas de helderheid aan met een hardware-fade
     void drawSetupModeActive();
-    void toonNetwerkInfo();        // Toont netwerk-info zoals IP-adres op het scherm
+    void showNetworkInfo();        // Toont netwerk-info zoals IP-adres op het scherm
     void updateClock();             // Tekent de wijzers.
     void drawMoonPhase();           // Tekent de maan-fase op de gegeven positie
     void drawWifiIndicator();       // Tekent de WiFi-indicator op de gegeven positie

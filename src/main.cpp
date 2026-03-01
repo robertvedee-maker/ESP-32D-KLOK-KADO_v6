@@ -3,7 +3,6 @@
  * Main application logic
  * Hierin staat de setup() en loop() functie, en worden de belangrijkste functies aangeroepen die in de andere files staan.
  * We hebben ervoor gekozen om deze functies in een aparte file te zetten om de code beter te organiseren en de main loop overzichtelijk te houden.
- * De functies in deze file worden aangeroepen vanuit app_actions.h, zodat we een centrale plek hebben voor alle 'acties' die de app kan uitvoeren.
  */
 
 #include "config.h"        // Voor pinnen en constanten
@@ -23,16 +22,20 @@
 #include <WiFi.h>
 
 void updateTickerSegments();
-void renderTicker();
-void manageDataPanels();
-void showSetupInstructionPanel();
+void evaluateSystemSafety();
+void finalizeSetupAndShowDashboard();
 void handleTouchLadder();
+void loop();
+void manageDataPanels();
+void manageEasterEggTimer();
 void manageStatusLed();
-bool setupInternalTempSensor();
-void updateInternalSensors();
+void renderTicker();
+void setup();
+void showSetupInstructionPanel();
 
 unsigned long lastWeatherUpdate = 0;
 unsigned long lastSensorUpdate = 0;
+RTC_DATA_ATTR uint32_t lastOWMFetchTime = 0; // RTC_DATA_ATTR uint32_t lastSensorFetchTime = 0; // Voor het bijhouden van de laatste sensor-update tijd (overleeft reboots)
 
 namespace Config
 {
@@ -47,47 +50,54 @@ void setup()
     // nvs_flash_erase();
     // nvs_flash_init();
 
-    pinMode(2, OUTPUT);   // De Systeem-LED achter de vingerprint
-    digitalWrite(2, LOW); // Start uit
+    pinMode(Config::pin_fingerprint_led, OUTPUT);   // De Systeem-LED achter de vingerprint
+    digitalWrite(Config::pin_fingerprint_led, LOW); // Start uit
+
+    pinMode(Config::pin_buck_enable, OUTPUT);   // Buck converter control pin
+    digitalWrite(Config::pin_buck_enable, LOW); // Start met buck converter aan (stroomvoorziening actief)
 
     Serial.begin(115200);
-    delay(1500); // 1.5 seconde pauze voor stabilisatie
+    delay(500); // 0.5 seconde pauze voor stabilisatie
 
-    Serial.println("\n--- Systeem Start ---");
+    Serial.println(F("\n--- Systeem Start ---"));
 
     Preferences prefs;
-    // Gebruik de naam van de namespace die jouw S.P.o.T. systeem gebruikt
-    // Meestal is dit "config" of "settings"
     prefs.begin("config", false);
-
     // --- HANDMATIGE DATA INJECTIE ---
-    // Serial.println("Bezig met handmatige data injectie...");
-
+    Serial.println(F("Bezig met handmatige data injectie..."));
     prefs.putString("owm_key", SECRET_OMW3);
-    // S.P.o.T. gebruikt vaak floats of doubles voor locatie
     prefs.putDouble("lat", SECRET_LAT);
     prefs.putDouble("lon", SECRET_LON);
-
     prefs.end();
-    Serial.println("Injectie voltooid! Vergeet deze regels later niet te verwijderen.");
     // --- EINDE INJECTIE ---
 
     // DISPLAY START
     setupDisplay();
+
+    // // TIJDELIJKE TEST-STOP
+    // drawSetupModeActive();
+    // updateDisplayBrightness(state.display.day_brightness); // Licht aan!
+
+    // while (true)
+    // {
+    //     yield(); // Blijf hier voor eeuwig hangen om te kijken/meten
+    // }
+
     // STORAGE START (Vroeger, zodat we direct de opgeslagen helderheid kunnen laden)
     initStorage();
 
-    // SENSOR START 
+    // SENSOR START
     if (setupSensors())
     {
         handleSensors(); // Doe direct de eerste meting
     }
 
-    // WiFi Setup 
+    // WiFi Setup
     setupWiFi();
 
     // Tijd configureren (NTP)
     configTzTime(SECRET_TZ_INFO, SECRET_NTP_SERVER);
+    manageTimeFunctions(); // Bepaalt zon-tijden en vult state.env
 
     if (prefs.begin("config", true))
     { // open in read-only
@@ -95,42 +105,44 @@ void setup()
         state.env.lat = prefs.getDouble("lat", 0.0);
         state.env.lon = prefs.getDouble("lon", 0.0);
         prefs.end();
-        Serial.println(F("[DEBUG] State handmatig gevuld vanuit Preferences"));
+        // Serial.println(F("[DEBUG] State handmatig gevuld vanuit Preferences"));
     }
     else
     {
         Serial.println(F("[DEBUG] FOUT: Kon Preferences 'config' niet openen!"));
     }
 
-    // Eerste berekeningen
-    manageTimeFunctions(); // Bepaalt zon-tijden en vult state.env
-    fetchWeather();        // Haalt OWM data en vult state.weather
-
-    // Initialiseer Ticker voor de eerste keer
-    updateTickerSegments();
 
     Serial.println(F("--- Systeem Start Voltooid ---"));
 
     // HELDERHEID TOEPASSEN (Hardware-fade naar de geladen waarde)
-    updateDisplayBrightness(state.display.day_brightness);
+    // updateDisplayBrightness(state.display.day_brightness);
+    finalizeSetupAndShowDashboard();
 
     // // Preferences prefs;
     // prefs.begin("config", true); // 'true' betekent read-only
 
-    // Serial.println("--- Inhoud van Preferences ---");
-    // Serial.print("SSID: ");
+    // Serial.println(F("--- Inhoud van Preferences ---"));
+    // Serial.print(F("SSID: "));
     // Serial.println(prefs.getString("ssid", "NIET GEVONDEN"));
-    // Serial.print("OWM Key: ");
+    // Serial.print(F("OWM Key: "));
     // Serial.println(prefs.getString("owm_key", "NIET GEVONDEN"));
-    // Serial.print("Lat: ");
+    // Serial.print(F("Lat: "));
     // Serial.println(prefs.getDouble("lat", 0.0), 6);
-    // Serial.print("Lon: ");
+    // Serial.print(F("Lon: "));
     // Serial.println(prefs.getDouble("lon", 0.0), 6);
     // prefs.end();
 }
 
 void loop()
 {
+
+    // static unsigned long debugTicker = 0;
+    // if (millis() - debugTicker > 1000)
+    // {
+    //     Serial.printf(F("[STATUS] Ticker Segments: %d, X-Pos: %d\n"), tickerSegments.size(), state.display.ticker_x);
+    //     debugTicker = millis();
+    // }
 
     // In de normale loop
     static unsigned long lastTouchTick = 0;
@@ -140,8 +152,6 @@ void loop()
         manageStatusLed();
         lastTouchTick = millis();
     }
-
-    // handleHardware();
 
     // struct NetworkState {
     //     // ... bestaande velden ...
@@ -188,13 +198,9 @@ void loop()
     //     return; // STOP HIER: Doe geen ticker, geen panels, geen weer-fetch
     // }
 
-    // --- BLOK 2: VISUEEL (TICKER & ANIMATIE) ---
-    if (!state.display.is_animating && !state.network.is_updating)
-    {
-        renderTicker();
-    }
 
-    // --- BLOK 3: DE KLOK (ELKE SECONDE) ---
+
+    // --- BLOK 2: DE KLOK (ELKE SECONDE) ---
     static time_t last_now = 0;
     time_t now = time(nullptr);
     if (now != last_now)
@@ -203,28 +209,38 @@ void loop()
         updateClock();
     }
 
-    // --- BLOK 4: SENSOREN & BEHEER (ELKE 10 SECONDEN) ---
+    // --- BLOK 3: SENSOREN & BEHEER (ELKE 10 SECONDEN) ---
     static unsigned long lastTenSecondTick = 0;
     if (millis() - lastTenSecondTick > 10000)
     {
         handleSensors();
         manageBrightness();
         manageTimeFunctions();
-        // handleWiFiEco();
         manageServerTimeout();
+        evaluateSystemSafety();
+        manageEasterEggTimer();
         // Als we in de toekomst OTA willen, is dit ook een goed moment om even te checken
         // if (state.network.ota_enabled) { ArduinoOTA.handle(); }
-
         lastTenSecondTick = millis();
+
+        // Serial.printf(F("[SYSTEM] Heap vrij: %u bytes\n"), ESP.getFreeHeap());
     }
 
-    // --- BLOK 5: DATA UPDATES  ---
+    // --- BLOK 4: DATA UPDATES  ---
     manageWeatherUpdates();
 
-    // --- BLOK 6: PANELEN & UI ---
+    // --- BLOK 5: PANELEN & UI ---
     handleWiFiEco();
+
+    // --- BLOK 6: VISUEEL (TICKER & ANIMATIE) ---
+    // if (!state.display.is_animating && !state.network.is_updating)
+    // {
+    //     renderTicker();
+    // }
+    renderTicker();
     manageDataPanels();
-    handleServerControl();
+
+    // handleServerControl();
     // --- S3 VOORBEREIDING (UITGECOMMENTARIEERD) ---
     /*
     if (state.network.ota_enabled) {
@@ -239,13 +255,13 @@ void loop()
     //     ESP.restart();
     // }
 
-    // --- DEBUG: Toon CPU temperatuur rechtsonder ---
-    tft.setTextFont(1); 
-    tft.setTextColor(TFT_DARKGREEN, TFT_BLACK);
-    tft.drawFloat(state.env.case_temp, 1, 5, 140); // Voor debug: Case temp
+    // --- DEBUG: Toon CPU temperatuur ---
+    // tft.setTextFont(2);
+    // tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    // tft.drawFloat(state.env.case_temp, 1, 5, 135); // Voor debug: Case temp
 
     // --- DEBUG: Toon vrije RAM in KB ---
-    // tft.setTextFont(1); 
-    // tft.setTextColor(TFT_DARKGREEN, TFT_BLACK);
-    // tft.drawNumber(ESP.getFreeHeap() / 1024, 5, 140); // Toont vrije KB's
+    // tft.setTextFont(2);
+    // tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    // tft.drawNumber(ESP.getFreeHeap() / 1024, 5, 135); // Toont vrije KB's
 }

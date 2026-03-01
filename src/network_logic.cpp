@@ -1,9 +1,9 @@
 /*
  * (c)2026 R van Dorland - Licensed under MIT License
  * Network logic: WiFi en OTA setup
- * Hierin staan de functies die te maken hebben met het opzetten van de WiFi-verbinding en het beheren van OTA updates. 
+ * Hierin staan de functies die te maken hebben met het opzetten van de WiFi-verbinding en het beheren van OTA updates.
  * Ook de eco-mode voor WiFi (automatisch aan/uit op basis van tijd) wordt hier beheerd.
- * het starten van de setup mode (AP + captive portal), 
+ * het starten van de setup mode (AP + captive portal),
  */
 
 #include "network_logic.h"
@@ -17,6 +17,12 @@
 #include <ESPmDNS.h>
 #include <Preferences.h>
 #include <WiFi.h>
+
+// Forward declarations
+void renderTicker();
+void updateTickerSegments();
+void drawSetupModeActive();
+void showNetworkInfo();
 
 DNSServer dnsServer;
 const byte DNS_PORT = 53;
@@ -36,6 +42,17 @@ void enableWiFi()
     setupWiFi(); // Onze bestaande functie die de verbinding start
     Serial.println(F("[NET] WiFi Radio INGESCHAKELD."));
 }
+
+void handleTicker() {
+    state.display.ticker_x -= 1;
+    if (state.display.ticker_x < -state.display.total_ticker_width) {
+        state.display.ticker_x = tft.width();
+        updateTickerSegments();
+    }
+    // Teken de sprite op het scherm (over de dolfijn heen!)
+    renderTicker(); 
+}
+
 
 void handleWiFiEco()
 {
@@ -90,6 +107,24 @@ void startSetupMode()
     initWebServer();
 
     Serial.println(F("Setup Mode gestart op 192.168.4.1"));
+
+// // Hoe je dit "Live" maakt:
+// // In je setup() of loop() waar je de DNS Server en SoftAP afhandelt voor de config-modus, moet je deze functie af en toe verversen.
+// // dit is alvast een voorbereiding voor de S3. in de 32D is de webconfig alleen beschikbaar via 5 seconde touch op de ladder, 
+// // dus we hoeven hier nog geen timer of zo te maken. 
+// // We checken gewoon in de loop() of er een verandering is in het aantal verbonden stations, en als dat zo is, 
+// // roepen we drawSetupModeActive() aan om het scherm te verversen.
+
+// // In de Setup-Modus loop:
+// static int lastStationCount = -1;
+// int currentStations = WiFi.softAPgetStationNum();
+
+// if (currentStations != lastStationCount) {
+//     drawSetupModeActive(); // Herteken het scherm als er iemand bijkomt of weggaat
+//     lastStationCount = currentStations;
+// }
+
+
 }
 
 // --- 3. DE HOOFD WIFI FUNCTIE ---
@@ -115,8 +150,11 @@ void setupWiFi()
     unsigned long start = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - start < 10000)
     {
-        delay(500);
-        Serial.print(".");
+            // DIT IS DE MAGIE: Terwijl we wachten op WiFi, laten we de Ticker rollen!
+        handleTicker(); // Zorg dat deze functie tckSpr.pushSprite(0, Config::ticker_y) doet
+        yield();        // Geef de WiFi-stack ademruimte
+        // delay(500);
+        // Serial.print(".");
     }
 
     // 3. Resultaat afhandelen
@@ -131,7 +169,7 @@ void setupWiFi()
 
         // --- S.P.O.T. SYNC ---
         state.network.wifi_connected = true;
-        toonNetwerkInfo(); // Laat het IP-adres kort op het scherm zien
+        showNetworkInfo(); // Laat het IP-adres kort op het scherm zien
 
         state.network.is_setup_mode = false; // Belangrijk: zet de klok-loop weer 'aan'
         // initWebServer();
@@ -171,83 +209,6 @@ void setupOTA()
     Serial.println(F("OTA Ready"));
 }
 
-void handleServerControl()
-{
-    int touchVal = touchRead(13);
-    static unsigned long touchStart = 0;
-    static bool isTouching = false;
-    static bool actieBevestigd = false;
-
-    if (touchVal < 60)
-    {
-        if (!isTouching)
-        {
-            touchStart = millis();
-            isTouching = true;
-            actieBevestigd = false;
-        }
-
-        unsigned long duur = millis() - touchStart;
-
-        if (!actieBevestigd)
-        {
-            if (duur < 5000)
-            {
-                // HET CREATIEVE PATROON (Feedback)
-                int interval = map(duur, 0, 5000, 400, 80);
-                digitalWrite(2, (millis() % (interval * 2) < interval));
-            }
-            else
-            {
-                // DE FINALE: Schakel de server
-                state.network.web_server_active = !state.network.web_server_active;
-
-                if (state.network.web_server_active)
-                {
-                    server.begin(); // WEK DE REUS
-                    Serial.println(F("[WEB] Server ACTIEF"));
-                }
-                else
-                {
-                    server.end(); // RUST IN HET SYSTEEM
-                    Serial.println(F("[WEB] Server INACTIEF"));
-                }
-
-                // Bevestigings-flits (zonder delay voor vloeiende klok)
-                for (int f = 0; f < 6; f++)
-                { // 6 wisselingen = 3 flitsen
-                    digitalWrite(2, !digitalRead(2));
-                    // Een micro-pauze die de SPI-bus niet blokkeert
-                    unsigned long wait = millis();
-                    while (millis() - wait < 40)
-                    {
-                        yield();
-                    }
-                }
-
-                actieBevestigd = true;
-            }
-        }
-    }
-    else
-    {
-        if (isTouching)
-        {
-            isTouching = false;
-            // Als de server uit is, moet de LED ook echt uit
-            if (!state.network.web_server_active)
-                digitalWrite(2, LOW);
-        }
-    }
-
-    // STATUS LED: 'Ademend' patroon als de server aan staat
-    if (state.network.web_server_active && !isTouching)
-    {
-        // Elke 5 sec een korte onderbreking (ademhaling van de server)
-        digitalWrite(2, (millis() % 5000 > 150));
-    }
-}
-
 void activateWiFiAndServer()
 {
     Serial.println(F("[NET] Config-modus activeren..."));
@@ -276,7 +237,7 @@ void activateWiFiAndServer()
         while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 10000)
         {
             delay(100);
-            digitalWrite(2, !digitalRead(2)); // Extra feedback tijdens verbinden
+            digitalWrite(Config::pin_fingerprint_led, !digitalRead(2)); // Extra feedback tijdens verbinden
         }
     }
 
@@ -286,13 +247,18 @@ void activateWiFiAndServer()
         if (MDNS.begin(state.network.mdns.c_str()))
         {
             MDNS.addService("http", "tcp", 80);
-            Serial.println("[NET] mDNS: " + state.network.mdns + ".local");
+            Serial.print(F("[NET] mDNS: "));
+            Serial.print(state.network.mdns);
+            Serial.println(F(".local"));
+            Serial.print(F("[NET] IP-Adres: "));
+            Serial.println(WiFi.localIP().toString());
         }
 
         // 4. Start de server pas als de rest staat
         initWebServer(); // Zorg dat hier GEEN mDNS.begin meer in staat!
         server.begin();
         state.network.web_server_active = true;
+        Serial.println(F("[NET] Config-server is nu ACTIEF"));
     }
 }
 
@@ -310,25 +276,28 @@ void manageServerTimeout()
             server.end();
             MDNS.end();
             state.network.web_server_active = false;
+            state.display.show_config_qr = false; // Zorg dat de QR-code ook verdwijnt
 
             // Optioneel: Knipper de LED 5x als afscheid
             for (int i = 0; i < 5; i++)
             {
-                digitalWrite(2, !digitalRead(2));
+                digitalWrite(Config::pin_fingerprint_led, !digitalRead(2));
                 delay(50);
             }
-            digitalWrite(2, LOW);
+            digitalWrite(Config::pin_fingerprint_led, LOW);
         }
     }
 }
 
-void deactivateWiFiAndServer()
-{
-    server.end();
-    state.network.web_server_active = false;
-    // Optioneel: WiFi weer naar laag verbruik als je geen updates nodig hebt
-    // WiFi.disconnect();
-    // WiFi.mode(WIFI_OFF);
-    digitalWrite(2, LOW);
-    Serial.println(F("[NET] Server offline"));
-}
+// void deactivateWiFiAndServer()
+// {
+//     server.end();
+//     state.network.web_server_active = false;
+//     state.display.show_config_qr = false; // Zorg dat de QR-code ook verdwijnt
+//     // Optioneel: WiFi weer naar laag verbruik als je geen updates nodig hebt
+//     // WiFi.disconnect();
+//     // WiFi.mode(WIFI_OFF);
+//     digitalWrite(Config::pin_fingerprint_led, LOW);
+
+//     Serial.println(F("[NET] Server offline"));
+// }

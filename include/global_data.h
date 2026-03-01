@@ -3,17 +3,26 @@
 #include <vector>
 #include "config.h" // We gebruiken Config:: voor de defaults
 
-enum SystemHealth {
+enum SystemHealth
+{
     HEALTH_OK,
     HEALTH_WARNING,
     HEALTH_CRITICAL
 };
 
+enum TickerMode
+{
+    MODE_BOOT,   // Welkomstboodschap bij opstarten
+    MODE_CONFIG, // Speciaal voor configuratie (zoals QR-code)
+    MODE_NORMAL, // Reguliere weersinformatie
+    MODE_ALERT,  // Geforceerd weeralarm (10 min of OWM alert)
+    MODE_WAITING // Optioneel: Specifieke status voor 'wachten op slot'
+};
 
 // --- TYPES & ENUMS ---
 struct TickerSegment
 {
-    String text;
+    char text[128]; // Vaste buffer van 128 bytes, GEEN String!
     uint16_t color;
     int width;
 };
@@ -22,44 +31,72 @@ struct UserData
 {
     String name = "";
     String dob = ""; // YYYY-MM-DD
+    String Leeftijd = "";
 };
 
 struct DailyForecast
 {
-    long dt = 0;
+    uint32_t dt = 0;
     float temp_min = 0.0;
     float temp_max = 0.0;
     int icon_id = 800;
     float moon_phase = 0.0;
+    uint32_t moon_rise = 0;
+    uint32_t moon_set = 0;
+    char summary[128] = "";
     char description[32] = "";
 };
 
 // --- SUBSYSTEM STATES ---
-
 struct WeatherData
 {
+    bool data_is_fresh = false; // Wordt pas true na de ALLEREERSTE geslaagde fetchWeather()
+
     uint32_t last_update_epoch = 0;
     float temp = 0.0, feels_like = 0.0, humidity = 0.0, pressure = 0.0, dew_point = 0.0;
     float uvi = 0.0, wind_speed = 0.0, wind_gust = 0.0;
     int wind_deg = 0, visibility = 0, clouds = 0, current_icon = 800;
     String description = "--";
-    String alert_text = "";
+
+    // Alarmen en waarschuwingen
+    String alert_text = "", alert_event = "", alert_tags = "";
+    long alert_start = 0, alert_end = 0;
+
+    // SPECIFIEK VOOR VANDAAG (Dag 0 uit de daily-sectie)
+    struct
+    {
+        char summary[128]; // De mooie zin van OWM3
+        float temp_min;
+        float temp_max;
+        float temp_night;
+        float temp_eve;
+        float temp_morn;
+        float moon_phase;
+        uint32_t moon_rise;
+        uint32_t moon_set;
+    } today;
+
+    // Forecast voor de komende dagen
+    DailyForecast forecast[4];
+
     String height_str = "--";
     float stable_height = 0.0;
-    DailyForecast forecast[3];
 };
 
 struct EnvData
 {
     bool is_night_mode = false;
     bool is_alert_active = false;
+    uint16_t ticker_color = TFT_LIGHTGREY; // Neutraal: Lichtgrijs
     uint16_t icon_base_color = 0x2104;             // Neutraal: Donkergrijs
     uint16_t alert_active_color = TFT_GREENYELLOW; // Alarm kleur
     // Deze helper geeft nu altijd de JUISTE kleur terug op basis van de status
     uint16_t get_current_alert_color() const
     {
-        if (health == HEALTH_CRITICAL) return 0xF800; // Rood
-        if (health == HEALTH_WARNING)  return 0xFDE0; // Geel/Oranje
+        if (health == HEALTH_CRITICAL)
+            return 0xF800; // Rood
+        if (health == HEALTH_WARNING)
+            return 0xFDE0; // Geel/Oranje
         return is_alert_active ? alert_active_color : icon_base_color;
     }
     double sunrise_local = 0.0, sunset_local = 0.0;
@@ -74,11 +111,10 @@ struct EnvData
     bool alert_muted = false;           // Voor mute status van ISO-alerts
     bool is_touching = false;           // Huidige status van aanraking (voor touch ladder)
 
-    // Interne CPU temperatuur (voor thermal safety checks)
-
+    // Interne CASE temperatuur (voor thermal safety checks)
     float case_temp = 0.0;
-    SystemHealth health = HEALTH_OK; 
-
+    SystemHealth health = HEALTH_OK;
+    int next_easter_egg_minute = -1; // Voor het plannen van het volgende paasei
 };
 
 struct NetworkState
@@ -112,6 +148,9 @@ struct DisplaySettings
     int transition_type = 0;
     int transition_speed = Config::default_transition_speed;
 
+    TickerMode current_ticker_mode = MODE_BOOT; // De huidige actieve modus
+    bool force_ticker_refresh = false;          // Vlag om direct van rechts te starten
+
     int ticker_x = 320;
     int total_ticker_width = 0;
     bool show_vandaag = true;
@@ -119,6 +158,13 @@ struct DisplaySettings
     bool show_easter_egg = false;
     unsigned long next_egg_time = 0;
     bool is_animating = false;
+
+    unsigned long alert_show_until = 0; // Wanneer moeten we de alert niet meer tonen (na einde + buffer)
+    bool force_alert_display = false;   // Forceren we de alert weergave
+
+    bool show_config_qr = false; // Is de QR-code nu zichtbaar in datSpr?
+
+    bool show_system_status = false; // Toont extra systeemstatus in datSpr
 
     bool led_enabled = true;
     int led_brightness = 200;
@@ -139,3 +185,8 @@ struct SystemState
 extern SystemState state;
 extern const char *dagNamen[];
 extern const char *maandNamen[];
+extern std::vector<TickerSegment> tickerSegments;
+
+// De prefix 'RTC_DATA_ATTR' zorgt dat dit in het speciale geheugen komt
+extern RTC_DATA_ATTR uint32_t lastOWMFetchTime0;
+extern RTC_DATA_ATTR uint32_t lastSensorFetchTime0;

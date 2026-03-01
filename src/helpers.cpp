@@ -1,6 +1,6 @@
 /*
  * (c)2026 R van Dorland - Licensed under MIT License
-*/
+ */
 
 #include "helpers.h"
 #include "config.h" // Toegevoegd voor Config:: pinnen en waarden
@@ -8,6 +8,7 @@
 #include "driver/ledc.h" // Voor PWM controle van de backlight
 #include "env_sensors.h"
 #include "global_data.h"
+#include "daynight.h"
 #include "leeftijd_calc.h"
 #include "secret.h"
 #include "bitmaps/weatherIcons40.h"
@@ -16,25 +17,17 @@
 #include <WiFi.h>
 #include "network_logic.h"
 #include "web_config.h"
-
-// // 1. Hardware instanties (MOETEN hier gedefinieerd worden)
-// TFT_eSPI tft = TFT_eSPI();
-// TFT_eSprite clkSpr = TFT_eSprite(&tft);
-// TFT_eSprite datSpr = TFT_eSprite(&tft);
-// TFT_eSprite datSpr2 = TFT_eSprite(&tft);
-// TFT_eSprite tckSpr = TFT_eSprite(&tft);
+#include <qrcode.h>
 
 extern SystemState state; // Voor toegang tot de centrale 'state' struct
 
-// 3. Helper functies voor het omzetten van data naar tekst of symbolen
-
+// --- Helper functies voor het omzetten van data naar tekst of symbolen ---
 String getWindRoos(int graden)
 {
     const char *roos[] = {"N", "NNO", "NO", "ONO", "O", "OZO", "ZO", "ZZO", "Z", "ZZW", "ZW", "WZW", "W", "WNW", "NW", "NNW"};
     int index = (int)((graden + 11.25) / 22.5) % 16;
     return String(roos[index]);
 }
-
 int getBeaufort(float ms)
 {
     if (ms < 0.3)
@@ -64,15 +57,29 @@ int getBeaufort(float ms)
     return 12;
 }
 
-int getBeaufort(float ms);
-String getWindRoos(int graden);
+void addTickerSegment(String txt, uint16_t col);
+void drawQRCodeOnTFT(const char *data, int x, int y, int scale);
+void drawSetupModeActive();
+void drawWebConfigQRinDataPaneel();
+void evaluateSystemSafety();
+void finalizeSetupAndShowDashboard();
+void handleTouchLadder();
+void manageDataPanels();
+void manageStatusLed();
+void manageTimeFunctions();
+void updateClock();
 void updateDataPaneelVandaag();
 void updateDataPaneelForecast();
+void updateDisplayBrightness(int level);
 void updateTickerSegments();
+void updateTouchLedFeedback(unsigned long duration);
+void showNetworkInfo();
+void showSetupInstructionPanel();
+void setupDisplay();
 
 // Voeg dit toe onderaan je helpers.cpp als tijdelijke fix:
 uint16_t getIconColor(int conditionCode)
-{    // Simpele mapping van OpenWeatherMap codes naar kleuren
+{ // Simpele mapping van OpenWeatherMap codes naar kleuren
     if (conditionCode >= 200 && conditionCode < 300)
         return TFT_SILVER; // Onweer
     if (conditionCode >= 300 && conditionCode < 600)
@@ -82,6 +89,21 @@ uint16_t getIconColor(int conditionCode)
     if (conditionCode == 800)
         return TFT_YELLOW; // Helder
     return TFT_LIGHTGREY;  // Bewolkt/Rest
+}
+
+int berekenMinutenTotUpdate()
+{
+    // 1. Haal de huidige tijd (Epoch) op
+    uint32_t nu = time(nullptr); // Haal de huidige Unix timestamp op
+
+    // 2. Bepaal wanneer de volgende update zou moeten zijn (last + 30 min)
+    uint32_t volgendeUpdate = state.weather.last_update_epoch + (30 * 60);
+
+    // 3. Bereken het verschil
+    if (nu >= volgendeUpdate)
+        return 0; // Tijd is al om!
+
+    return (int)((volgendeUpdate - nu) / 60);
 }
 
 // --- INITIALISATIE ---
@@ -105,7 +127,7 @@ void setupDisplay()
 
     // 3. Haal de actuele schermmaten op (na rotatie!)
     int sw = tft.width();  // Geeft 320 op je huidige scherm
-    int sh = tft.height(); // Geeft 240 op je huidige scherm
+    int sh = tft.height(); // Geeft 170 op je huidige scherm
 
     // 4. Initialiseer de sprites volgens S.P.O.T.
     // Klok: Vaste afmetingen uit Config (150x150)
@@ -124,7 +146,41 @@ void setupDisplay()
 
     // 5. Initialiseer PWM & Fade-in naar start-helderheid
     ledcAttach(Config::pin_backlight, Config::pwm_freq, Config::pwm_res);
-    updateDisplayBrightness(state.display.backlight_pwm);
+    // updateDisplayBrightness(state.display.backlight_pwm);
+}
+
+void finalizeSetupAndShowDashboard()
+{
+    // 1. Trek het gordijn dicht (Snel faden naar zwart)
+    for (int b = state.display.backlight_pwm; b >= 0; b -= 10)
+    {
+        updateDisplayBrightness(b);
+        delay(5);
+    }
+
+    manageTimeFunctions();
+    int targetBrightness = (state.env.is_night_mode) ? state.display.night_brightness : state.display.day_brightness;
+
+    // 2. Wis het TFT-scherm (Dolfijn weg)
+    tft.fillScreen(TFT_BLACK);
+
+    // 3. Bouw het COMPLETE dashboard op in de achtergrond (Sprites vullen)
+    updateClock();          // Vult clkSpr
+    manageDataPanels();     // Vult datSpr (omdat data_is_fresh nu true is)
+    updateTickerSegments(); // Vult tckSpr met MODE_NORMAL
+
+    // 4. "Atomic" Push: Stuur alles direct achter elkaar naar het scherm
+    // Geen berekeningen meer hier, alleen pixels pushen!
+    clkSpr.pushSprite(Config::clock_x, Config::clock_y);
+    datSpr.pushSprite(Config::data_x, Config::data_y);
+    tckSpr.pushSprite(0, Config::get_ticker_y(tft.height()));
+
+    // 5. Trek het gordijn open (Rustig faden naar de ingestelde helderheid)
+    for (int b = 0; b <= targetBrightness; b += 5)
+    {
+        updateDisplayBrightness(b);
+        delay(15);
+    }
 }
 
 //          --- BACKLIGHT FUNCTIES ---
@@ -184,9 +240,16 @@ void updateDisplayBrightness(int level)
 //          --- TICKER SEGMENT FUNCTIES ---
 void addTickerSegment(String txt, uint16_t col)
 {
-    int w = tckSpr.textWidth(txt); // Meet direct hoe breed dit font is
-    state.ticker_segments.push_back({txt, col, w});
-    state.display.total_ticker_width += w; // Tel het op bij het totaal
+    TickerSegment seg;
+
+    // Tekst kopiëren van String naar char array
+    strncpy(seg.text, txt.c_str(), sizeof(seg.text) - 1);
+    seg.text[sizeof(seg.text) - 1] = '\0';
+
+    seg.color = col;
+    seg.width = tft.textWidth(seg.text);
+
+    state.ticker_segments.push_back(seg);
 }
 
 //          --- KLOK UPDATE FUNCTIE ---
@@ -288,14 +351,14 @@ void updateDataPaneelVandaag()
         datSpr.fillCircle(xOp, tlY + 1, 4, TFT_YELLOW);
         datSpr.setTextDatum(BC_DATUM);
         datSpr.setTextFont(1);
-        datSpr.drawString(String(state.env.sunrise_str), xOp, tlY - 5);
+        if (xOp > 95) {datSpr.drawString(String(state.env.sunrise_str), xOp, tlY - 5);}
     }
     if (xOnder > 0 && xOnder < 170)
     {
-        datSpr.fillCircle(xOnder, tlY + 1, 4, TFT_GOLD);
+        datSpr.fillCircle(xOnder, tlY + 1, 4, TFT_ORANGE);
         datSpr.setTextDatum(BC_DATUM);
         datSpr.setTextFont(1);
-        datSpr.drawString(String(state.env.sunset_str), xOnder, tlY - 5);
+        if (xOnder > 95) {datSpr.drawString(String(state.env.sunset_str), xOnder, tlY - 5);}
     }
 
     float moonPos = (nuDecimal < 12) ? nuDecimal + 12 : nuDecimal - 12;
@@ -326,25 +389,25 @@ void updateDataPaneelForecast()
         datSpr2.setTextFont(2);
         datSpr2.setTextDatum(TR_DATUM);
         datSpr2.setTextColor(TFT_WHITE, TFT_BLACK);
-        datSpr2.drawString(dagNamen[ti->tm_wday], 35, yPos + 10);
+        datSpr2.drawString(dagNamen[ti->tm_wday], 32, yPos + 10);
 
         datSpr2.setTextFont(1);
         datSpr2.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-        datSpr2.drawString(datumBuf, 36, yPos + 30);
+        datSpr2.drawString(datumBuf, 33, yPos + 30);
 
         datSpr2.setTextDatum(TR_DATUM);
         datSpr2.setTextFont(2);
         datSpr2.setTextColor(TFT_GOLD, TFT_BLACK);
-        String tMinMax = String(f.temp_min, 1) + " - " + String(f.temp_max, 1);
-        datSpr2.drawString(tMinMax, 165 - 12, yPos + 10);
-        datSpr2.drawString("c", 165, yPos + 10);
+        String tMinMax = /*String(f.temp_min, 1) + " - " + */String(f.temp_max, 1);
+        datSpr2.drawString(tMinMax, 169 - 12, yPos + 12);
+        datSpr2.drawString("c", 169, yPos + 10);
         datSpr2.drawCircle(165 - 8, yPos + 11, 2, TFT_GOLD);
 
         datSpr2.setTextFont(1);
         datSpr2.setTextColor(TFT_SKYBLUE, TFT_BLACK);
-        datSpr2.drawString(f.description, 165, yPos + 30);
+        datSpr2.drawString(f.description, 169, yPos + 34);
 
-        drawWeatherIcon(datSpr2, 40, yPos + 5, 40, f.icon_id, true);
+        drawWeatherIcon(datSpr2, 37, yPos + 5, 40, f.icon_id, true);
 
         if (i < 2)
             datSpr2.drawFastHLine(0, yPos + 49, 170, 0x2104);
@@ -373,9 +436,33 @@ void showSetupInstructionPanel()
 }
 
 // --- 1. HET DOFIJN-SCHERM (Netwerk info) ---
-void toonNetwerkInfo()
+
+void drawQRCodeOnTFT(const char *data, int x, int y, int scale)
+{
+    QRCode qrcode;
+    // Version 4 is iets groter (33x33), ideaal voor de WiFi-string
+    uint8_t qrcodeData[qrcode_getBufferSize(4)];
+    qrcode_initText(&qrcode, qrcodeData, 4, 0, data);
+
+    // Teken een wit kader voor beter scannen (Quiet Zone)
+    tft.fillRect(x - 5, y - 5, (qrcode.size * scale) + 10, (qrcode.size * scale) + 10, TFT_WHITE);
+
+    for (uint8_t qy = 0; qy < qrcode.size; qy++)
+    {
+        for (uint8_t qx = 0; qx < qrcode.size; qx++)
+        {
+            uint16_t color = qrcode_getModule(&qrcode, qx, qy) ? TFT_BLACK : TFT_WHITE;
+            tft.fillRect(x + (qx * scale), y + (qy * scale), scale, scale, color);
+        }
+    }
+}
+
+void showNetworkInfo()
 {
     tft.fillScreen(TFT_BLACK);
+
+    updateDisplayBrightness(Config::default_brightness);
+
     tft.drawRoundRect(2, 2, tft.width() - 4, tft.height() - 4, 10, TFT_GREEN);
     tft.drawBitmap(20, 20, image_DolphinSuccess_bits, 108, 57, TFT_WHITE);
 
@@ -387,26 +474,55 @@ void toonNetwerkInfo()
     tft.setTextColor(TFT_WHITE);
     tft.drawString("IP: " + WiFi.localIP().toString(), 140, 80);
 
-    delay(3000);
-    tft.fillScreen(TFT_BLACK);
+    // delay(3000);
+    // tft.fillScreen(TFT_BLACK);
 }
 
 void drawSetupModeActive()
 {
-    // Opstart scherm voor Setup Mode
     tft.fillScreen(TFT_BLACK);
-    tft.drawRoundRect(2, 2, tft.width() - 4, tft.height() - 4, 10, TFT_GOLD);
-    tft.drawBitmap(20, 20, image_DolphinWait_bits, 59, 54, TFT_WHITE);
+    tft.drawRoundRect(2, 2, 316, 166, 10, TFT_GOLD);
 
+    tft.drawBitmap(15, 15, image_DolphinWait_bits, 59, 54, TFT_WHITE);
     tft.setTextFont(2);
-    tft.setTextColor(TFT_GOLD);
-    tft.drawString("SETUP MODUS ACTIEF", 140, 30);
-    tft.setTextColor(TFT_WHITE);
-    tft.drawString("Verbind met:", 140, 60);
-    tft.setTextColor(TFT_SKYBLUE);
-    tft.drawString("Kado-Klok-Setup", 140, 80);
-    tft.setTextColor(TFT_WHITE);
-    tft.drawString("Ga naar: 192.168.4.1", 140, 115);
+
+    // Check of er iemand verbonden is met het Access Point
+    // TIJDELIJKE TEST-OVERRIDE:
+    // int stations = 1; // Zet op 0 voor stap 1, op 1 voor stap 2
+    int stations = WiFi.softAPgetStationNum();
+
+    if (stations == 0)
+    {
+        // STAP 1: Gebruiker moet nog verbinden met WiFi
+        tft.setTextColor(TFT_GOLD);
+        tft.drawString("STAP 1: VERBINDEN", 15, 80);
+        tft.setTextColor(TFT_WHITE);
+        tft.drawString("Scan om te verbinden met:", 15, 100);
+        tft.setTextColor(TFT_SKYBLUE);
+        tft.drawString("SSID: Kado-Klok-Setup", 15, 120);
+
+        const char *qrWiFi = "WIFI:S:Kado-Klok-Setup;T:nopass;;";
+        drawQRCodeOnTFT(qrWiFi, 195, 35, 3);
+    }
+    else
+    {
+        // STAP 2: Gebruiker IS verbonden, stuur ze naar de pagina
+        tft.setTextColor(TFT_GREEN);
+        tft.drawString("STAP 2: CONFIGUREREN", 15, 80);
+        tft.setTextColor(TFT_WHITE);
+        tft.drawString("Verbonden! Scan nu om", 15, 100);
+        tft.drawString("de instellingen te openen:", 15, 120);
+
+        tft.setTextColor(TFT_SKYBLUE);
+        tft.drawString("http://192.168.4.1", 15, 140);
+
+        const char *qrURL = "http://192.168.4.1";
+        // Omdat de URL korter is, kunnen we de QR iets groter maken (Scale 3)
+        drawQRCodeOnTFT(qrURL, 195, 35, 3);
+    }
+
+    tft.setTextColor(TFT_LIGHTGREY);
+    tft.drawCentreString("SCAN MIJ", 245, 145, 1);
 }
 
 // ---   TEKENFUNCTIES ---
@@ -507,14 +623,14 @@ void drawWifiIndicator(int x, int y, int h)
         }
     }
     else
-    {    // --- STATUS: UIT ---
+    { // --- STATUS: UIT ---
         uint16_t statusColor;
         if (state.network.wifi_mode == 1)
-        {   // Mode: On-Demand (Wacht op update slot)
+        { // Mode: On-Demand (Wacht op update slot)
             statusColor = standbyGreen;
         }
         else
-        {    // Mode: Eco-Nacht of uit
+        { // Mode: Eco-Nacht of uit
             statusColor = state.env.icon_base_color;
         }
 
@@ -603,17 +719,17 @@ void handleHardware()
     if (state.env.is_alert_active)
     {
         if (state.env.alert_muted)
-        {    // Muted: Subtiel 'hartslag' effect (knippert heel kort elke 3 seconden)
-            digitalWrite(2, (millis() % 3000 < 50));
+        { // Muted: Subtiel 'hartslag' effect (knippert heel kort elke 3 seconden)
+            digitalWrite(Config::pin_fingerprint_led, (millis() % 3000 < 50));
         }
         else
-        {    // Actief: Opvallend knipperen (Safety Car tempo)
-            digitalWrite(2, (millis() % 1000 < 500));
+        { // Actief: Opvallend knipperen (Safety Car tempo)
+            digitalWrite(Config::pin_fingerprint_led, (millis() % 1000 < 500));
         }
     }
     else
     {
-        digitalWrite(2, LOW); // Ruststand
+        digitalWrite(Config::pin_fingerprint_led, LOW); // Ruststand
     }
 }
 
@@ -622,106 +738,148 @@ void handleTouchLadder()
     int touchVal = touchRead(13);
     static unsigned long touchStart = 0;
     static bool isTouching = false;
-    static bool stage1Feedback = false;
-    static bool stage2Triggered = false;
+    static unsigned long lastLog = 0;
 
+    // --- 1. AANRAKING DETECTIE ---
     if (touchVal < 55)
-    { // AANRAKING DETECTEERD
-        // Teken een klein oranje/geel cirkeltje rechtsboven de analoge klok om visuele feedback te geven dat we een aanraking detecteren (en dat de ladder actief is)
-        tft.fillCircle(145, 7, 4, TFT_GOLD);
-        // Serial.printf("[TOUCH] Aanraking gedetecteerd (waarde: %d)\n", touchVal);
-
+    {
         if (!isTouching)
         {
-            touchStart = millis();
+            touchStart = millis(); // Dit mag maar EÉN keer gebeuren bij de eerste aanraking!
             isTouching = true;
-            state.env.is_touching = true; // Update de centrale state voor de touch status
-            stage1Feedback = false;
-            stage2Triggered = false;
+            state.env.is_touching = true;
+            Serial.println(F("[TOUCH] Start meting..."));
         }
 
+        tft.fillCircle(145, 7, 4, TFT_BLACK); // Reset de indicator (wordt overschreven door de feedback-functie)
         unsigned long duration = millis() - touchStart;
 
-        // FEEDBACK FASE 1 (0-2 sec): Rustig knipperen
-        if (duration < 2000)
+        // DEBUG (alleen als we drukken)
+        if (millis() - lastLog > 500)
         {
-            digitalWrite(2, (millis() % 400 < 200));
+            Serial.printf("[DEBUG-TOUCH] Val: %d | Dur: %lu ms | Server: %s\n",
+                          touchVal, duration, state.network.web_server_active ? "AAN" : "UIT");
+            lastLog = millis();
         }
-        // FEEDBACK FASE 2 (2-5 sec): Sneller knipperen (Mute zone)
-        else if (duration >= 2000 && duration < 5000)
-        {
-            digitalWrite(2, (millis() % 200 < 100));
-            stage1Feedback = true; // We weten nu dat we in de 'Mute' zone zitten
-        }
-        // ACTIE FASE 3 (5+ sec): WiFi Config (Directe actie)
-        else if (duration >= 5000 && !stage2Triggered)
-        {
-            // Bevestig met 3 flitsen
-            for (int i = 0; i < 3; i++)
-            {
-                digitalWrite(2, HIGH);
-                delay(50);
-                digitalWrite(2, LOW);
-                delay(50);
-            }
 
-            // Start de WiFi en Server
-            activateWiFiAndServer();
-            stage2Triggered = true;
-        }
+        // FEEDBACK (Alleen LED, GEEN acties!)
+        updateTouchLedFeedback(duration);
     }
-    else
-    { // LOSGELATEN
+    else if (isTouching)
+    { // --- VINGER ERAF: Hier gebeurt de actie ---
+        unsigned long eindDuur = millis() - touchStart;
+        tft.fillCircle(145, 7, 4, TFT_BLACK);
 
-        // Wis het cirkeltje als er geen aanraking is (teken een zwart rondje eroverheen)
-        if (isTouching)
-            tft.fillCircle(145, 7, 4, TFT_BLACK);
-
-        if (isTouching)
+        // 1. ZONE: 2 - 5 SEC (Context acties)
+        if (eindDuur >= 2000 && eindDuur < 5000)
         {
-            unsigned long eindDuur = millis() - touchStart;
-
-            // Alleen de Mute actie uitvoeren als we LOSLATEN in de 2-5 sec zone
-            if (eindDuur >= 2000 && eindDuur < 5000 && !stage2Triggered)
+            if (state.network.web_server_active)
             {
-                state.env.alert_muted = !state.env.alert_muted;
-                state.display.ticker_x = -state.display.total_ticker_width; // Forceer wissel
-                Serial.println(F("[TOUCH] Alert Mute Toggle uitgevoerd"));
+                state.display.show_config_qr = !state.display.show_config_qr;
             }
-
-            // LED status herstellen (Aan als server draait, anders uit)
-            digitalWrite(2, state.network.web_server_active ? HIGH : LOW);
-
-            isTouching = false;
-            stage1Feedback = false;
-            stage2Triggered = false;
-            touchStart = 0;
-            state.env.is_touching = false; // Update de centrale state voor de touch status
+            else
+            {
+                state.display.force_alert_display = !state.display.force_alert_display;
+                state.display.alert_show_until = state.display.force_alert_display ? millis() + 600000UL : 0;
+            }
+            state.display.force_ticker_refresh = true;
         }
+
+        // 2. ZONE: 5 - 8 SEC (De Generaal: WebConfig)
+        else if (eindDuur >= 5000 && eindDuur < 8000)
+        {
+            if (!state.network.web_server_active)
+            {
+                activateWiFiAndServer(); // Start de server pas NU
+                state.display.force_ticker_refresh = true;
+            }
+        }
+
+        // 3. ZONE: 8 - 11 SEC (De Machinekamer: Systeem Status)
+        else if (eindDuur >= 8000 && eindDuur < 11000)
+        {
+            state.display.show_system_status = !state.display.show_system_status;
+        }
+
+        // --- RESET VOOR DE VOLGENDE KEER ---
+        digitalWrite(Config::pin_fingerprint_led, state.network.web_server_active ? HIGH : LOW);
+        isTouching = false;
+        touchStart = 0;
+        state.env.is_touching = false;
+
+        // Update direct het datapaneel voor visuele feedback
+        manageDataPanels();
     }
 }
 
 // even kijken of we dit nog nodig hebben of gebruiken om de status van handleTouchLadder te ondersteunen
 void manageStatusLed()
 {
+    // Als we aan het drukken zijn, bemoeit deze functie zich nergens mee
     if (state.env.is_touching)
         return;
 
     if (state.network.web_server_active)
     {
-        // De server is actief: LED aan, maar elke 5 sec (5000ms) een flits van 100ms uit
-        bool ledStatus = (millis() % 5000 > 100);
-        digitalWrite(2, ledStatus);
+        // Server actief: Constant aan met een kleine 'heartbeat' uit
+        digitalWrite(Config::pin_fingerprint_led, (millis() % 5000 > 100));
     }
     else if (state.env.is_alert_active && !state.env.alert_muted)
     {
-        // Je bestaande alarm-knipper logica
-        digitalWrite(2, (millis() % 1000 < 500));
+        digitalWrite(Config::pin_fingerprint_led, (millis() % 1000 < 500));
     }
     else
     {
-        digitalWrite(2, LOW);
+        digitalWrite(Config::pin_fingerprint_led, LOW);
     }
+}
+
+void updateTouchLedFeedback(unsigned long duration)
+{
+    if (duration < 2000)
+    {
+        digitalWrite(Config::pin_fingerprint_led, (millis() % 400 < 100)); // Klaarstaan (kort flitsje)
+        tft.fillCircle(145, 7, 4, TFT_YELLOW);
+    }
+    else if (duration < 5000)
+    {
+        digitalWrite(Config::pin_fingerprint_led, (millis() % 200 < 100)); // Snel (Actie/Alert zone)
+         tft.fillCircle(145, 7, 4, TFT_CYAN);
+    }
+    else if (duration < 8000)
+    {
+        digitalWrite(Config::pin_fingerprint_led, HIGH); // Constant (WebConfig zone)
+        tft.fillCircle(145, 7, 4, TFT_MAGENTA);
+    }
+    else if (duration < 11000)
+    {
+        // SOS Morse Feedback (Systeem Status zone)
+        int cycle = (millis() % 1500);
+        bool ledOn = (cycle < 300 && cycle % 100 < 50) ||                  // S
+                     (cycle >= 300 && cycle < 900 && cycle % 300 < 200) || // O
+                     (cycle >= 900 && cycle < 1200 && cycle % 100 < 50);   // S
+        digitalWrite(Config::pin_fingerprint_led, ledOn);
+    }
+    else
+    {
+        digitalWrite(Config::pin_fingerprint_led, LOW); // Abort
+        tft.fillCircle(145, 7, 4, TFT_BLACK);
+    }
+}
+
+void drawWebConfigQRinDataPaneel()
+{
+    // Teken de QR-code in datSpr (170x150)
+    datSpr.fillSprite(TFT_BLACK);
+    datSpr.setTextColor(TFT_GREEN);
+    datSpr.drawCentreString("CONFIG ACTIEF", datSpr.width() / 2, 10, 2);
+
+    char url[32];
+    snprintf(url, sizeof(url), "http://%s", WiFi.localIP().toString().c_str());
+
+    // Teken QR-code direct in de sprite
+    const char *qrWiFi = url;
+    drawQRCodeOnTFT(qrWiFi, 195, 35, 3);
 }
 
 void manageAlertTimeout()
@@ -735,13 +893,48 @@ void manageAlertTimeout()
     }
 }
 
-void evaluateSystemSafety() {
-    // Hier bepalen we de status op basis van de CPU temp (en eventueel later andere sensoren)
-    if (state.env.case_temp > 65.0) {
-        state.env.health = HEALTH_CRITICAL;
-    } else if (state.env.case_temp > 55.0) {
+void evaluateSystemSafety()
+{
+    float temp = state.env.case_temp;
+
+    // 1. ABSOLUTE NOODSTOP (Altijd als eerste checken)
+    if (temp > Config::system_temp_threshold)
+    {
+        if (state.env.health != HEALTH_CRITICAL)
+        {
+            digitalWrite(Config::pin_buck_enable, HIGH); // Buck UIT
+            state.env.health = HEALTH_CRITICAL;
+            Serial.println(F("[SAFETY] EMERGENCY: Buck gedeactiveerd!"));
+        }
+        return; // Stop hier, we zijn in lockdown
+    }
+
+    // 2. HERSTEL VAN NOODSTOP (Hysteresis)
+    // We komen pas uit CRITICAL als we onder de 60 graden zijn
+    if (state.env.health == HEALTH_CRITICAL)
+    {
+        if (temp < Config::system_temp_hysteresis)
+        {
+            digitalWrite(Config::pin_buck_enable, LOW); // Buck weer AAN
+            state.env.health = HEALTH_WARNING;          // We zakken een niveau
+
+            // Reanimeer het scherm
+            setupDisplay();
+            Serial.println(F("[SAFETY] Herstel: Scherm gereanimeerd."));
+        }
+        else
+        {
+            return; // Nog te warm, blijf in CRITICAL (Buck uit)
+        }
+    }
+
+    // 3. NORMALE MONITORING (Warning & OK)
+    if (temp > Config::system_temp_warning)
+    {
         state.env.health = HEALTH_WARNING;
-    } else {
+    }
+    else if (temp < Config::system_temp_hysteresis)
+    { // Hysteresis van 5 graden voor rustig beeld
         state.env.health = HEALTH_OK;
     }
 }

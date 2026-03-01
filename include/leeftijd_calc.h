@@ -6,14 +6,14 @@
 #pragma once
 #include <Arduino.h>
 
-struct Leeftijd
-{
-    int jaren;
-    int maanden;
-    int dagen;
-    String fact;
-};
+// struct Leeftijd
+// {
+//     int jaren;
+//     int maanden;
+//     int dagen;
+//     String fact;
+// };
 
-// Functie die de berekening doet op basis van de huidige systeemtijd
-Leeftijd berekenLeeftijd(int geboorteDag, int geboorteMaand, int geboorteJaar);
-void toonPersoonlijkeInfo();
+// // Functie die de berekening doet op basis van de huidige systeemtijd
+// Leeftijd berekenLeeftijd(int geboorteDag, int geboorteMaand, int geboorteJaar);
+// void toonPersoonlijkeInfo();

@@ -9,8 +9,11 @@
 #include <SolarCalculator.h>
 
 // Forward declaration
+void manageBrightness();
+void manageTimeFunctions();
 void updateDisplayBrightness(int pwm);
 
+//      --- HELDERHEID EN ZON-LOGICA: Beheer van de automatische aanpassing van de helderheid op basis van tijd en veiligheid ---
 void updateDateTimeStrings(struct tm *timeinfo)
 {
     snprintf(state.env.current_time_str, sizeof(state.env.current_time_str),
@@ -20,6 +23,7 @@ void updateDateTimeStrings(struct tm *timeinfo)
              "%02d-%02d-%04d", timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year + 1900);
 }
 
+//      --- HOOFDLOGICA VOOR HET BEHEREN VAN DE TIJD EN HELDERHEID (Zon-Logica + Veiligheids-override) ---
 void manageTimeFunctions()
 {
     struct tm timeinfo;
@@ -45,78 +49,59 @@ void manageTimeFunctions()
     snprintf(state.env.sunset_str, sizeof(state.env.sunset_str), "%02d:%02d", sH, sM);
 }
 
+//      --- HOOFDFUNCTIE VOOR HET BEHEREN VAN DE HELDERHEID OP BASIS VAN ZON-LOGICA EN VEILIGHEIDS-OVERRIDE ---
 void manageBrightness()
 {
     struct tm timeinfo;
-    if (!getLocalTime(&timeinfo))
-        return;
+    if (!getLocalTime(&timeinfo)) return;
 
+    // 1. DATA VOORBEREIDEN
     int nu = (timeinfo.tm_hour * 60) + timeinfo.tm_min;
     int op = (int)(state.env.sunrise_local * 60);
     int onder = (int)(state.env.sunset_local * 60);
+    int fade = Config::solar_fade_minutes;
 
     int dag = state.display.day_brightness;
     int nacht = state.display.night_brightness;
-    int target_pwm = state.display.backlight_pwm;
+    int target_pwm = nacht; // We gaan uit van nacht als default
 
-    // Gebruik solar_fade_minutes (60) om een overgangsperiode van 1 uur te creëren rondom zonsopkomst en zonsondergang
-    // Binnen deze periode passen we de helderheid geleidelijk aan van nacht naar dag of omgekeerd
-    // We controleren eerst of we in de overgangsperiode zitten, en zo ja, 
-    // berekenen we de target_pwm op basis van hoe ver we in die periode zitten (gebruikmakend van de map() functie om een lineaire overgang te creëren).
-    if (nu >= (op - Config::solar_fade_minutes) && nu < op)
-    {
-        target_pwm = map(nu, op - Config::solar_fade_minutes, op, nacht, dag);
-        state.env.is_night_mode = false; // We zijn aan het opstaan (Dag-modus)
-        Serial.println("[Brightness] Overgang naar DAG-modus (Zon gaat op)");
-    }
-    else if (nu >= onder && nu < (onder + Config::solar_fade_minutes))
-    {
-        target_pwm = map(nu, onder, onder + Config::solar_fade_minutes, dag, nacht);
-        state.env.is_night_mode = false; // De zon gaat onder (Nacht-modus start)
-        Serial.println("[Brightness] Overgang naar NACHT-modus (Zon gaat onder)");
-    }
-    else
-    {
-        if (nu >= (op) && nu < onder + Config::solar_fade_minutes)
-        {
-            target_pwm = dag;
-            state.env.is_night_mode = false; // Volle dag
-            Serial.println("[Brightness] Volle DAG-modus actief");
-        }
-        else
-        {
-            target_pwm = nacht;
-            state.env.is_night_mode = true; // HIER: Nu staat hij ook echt op nacht!
-            Serial.println("[Brightness] Volle NACHT-modus actief");
-        }
+    // 2. BASIS HELDERHEID BEPALEN (De Zon-logica)
+    if (nu >= (op - fade) && nu < op) {
+        // Zonsopkomst (Fade IN)
+        target_pwm = map(nu, op - fade, op, nacht, dag);
+        state.env.is_night_mode = false;
+    } 
+    else if (nu >= op && nu < onder) {
+        // Volle dag
+        target_pwm = dag;
+        state.env.is_night_mode = false;
+    } 
+    else if (nu >= onder && nu < (onder + fade)) {
+        // Zonsondergang (Fade OUT)
+        target_pwm = map(nu, onder, onder + fade, dag, nacht);
+        state.env.is_night_mode = false; 
+    } 
+    else {
+        // Volle nacht
+        target_pwm = nacht;
+        state.env.is_night_mode = true;
     }
 
-    // Gebruik de status uit de state voor de injectie
-    if (state.env.health == HEALTH_CRITICAL)
-    {
+    // 3. THERMISCHE INJECTIE (De Veiligheids-override)
+    // Deze komt ná de zon-logica zodat veiligheid altijd wint
+    if (state.env.health == HEALTH_CRITICAL) {
         target_pwm = min(target_pwm, 15);
-    }
-    else if (state.env.health == HEALTH_WARNING)
-    {
+    } 
+    else if (state.env.health == HEALTH_WARNING) {
         target_pwm = target_pwm / 2;
     }
 
-    if (target_pwm != state.display.backlight_pwm)
-    {
+    // 4. HARDWARE AANSTUREN
+    // We checken hier slechts één keer of de waarde echt veranderd is
+    if (target_pwm != state.display.backlight_pwm) {
         updateDisplayBrightness(target_pwm);
-    }
-
-    // Serial.printf("[Brightness] Nu: %02d:%02d, Op: %02d:%02d, Onder: %02d:%02d, Target PWM: %d\n",
-    //     timeinfo.tm_hour, timeinfo.tm_min,
-    //     op / 60, op % 60,
-    //     onder / 60, onder % 60,
-    //     target_pwm);
-    // Serial.printf(state.env.is_night_mode ? "[Brightness] Huidige modus: NACHT\n" : "[Brightness] Huidige modus: DAG\n");
-
-    // Gebruik de berekende target_pwm om de hardware aan te sturen
-    if (target_pwm != state.display.backlight_pwm)
-    {
-        // Alleen de functie aanroepen, de functie zelf werkt de state bij!
-        updateDisplayBrightness(target_pwm);
+        Serial.printf("[Brightness] Nieuwe PWM: %d \n", target_pwm);
+        Serial.printf("[HEALTH] %d, Temperatuur Behuizing: %.1f°C \n", state.env.health, state.env.case_temp);
     }
 }
+
