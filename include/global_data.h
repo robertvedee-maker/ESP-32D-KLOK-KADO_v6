@@ -87,7 +87,7 @@ struct EnvData
 {
     bool is_night_mode = false;
     bool is_alert_active = false;
-    uint16_t ticker_color = TFT_LIGHTGREY; // Neutraal: Lichtgrijs
+    uint16_t ticker_color = TFT_LIGHTGREY;         // Neutraal: Lichtgrijs
     uint16_t icon_base_color = 0x2104;             // Neutraal: Donkergrijs
     uint16_t alert_active_color = TFT_GREENYELLOW; // Alarm kleur
     // Deze helper geeft nu altijd de JUISTE kleur terug op basis van de status
@@ -159,12 +159,14 @@ struct DisplaySettings
     unsigned long next_egg_time = 0;
     bool is_animating = false;
 
+    uint16_t touch_indicator_color = TFT_BLACK; // Kleur van de touch-indicator (kan dynamisch veranderen)
+
     unsigned long alert_show_until = 0; // Wanneer moeten we de alert niet meer tonen (na einde + buffer)
     bool force_alert_display = false;   // Forceren we de alert weergave
 
     bool show_config_qr = false; // Is de QR-code nu zichtbaar in datSpr?
 
-    bool show_system_status = false; // Toont extra systeemstatus in datSpr
+    bool show_system_monitor = false;
 
     bool led_enabled = true;
     int led_brightness = 200;

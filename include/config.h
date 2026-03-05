@@ -41,7 +41,7 @@ namespace Config
     inline int get_ticker_y(int screen_h) { return screen_h - ticker_h; }
     inline constexpr int ticker_x = 0;
 
-    inline constexpr int time_display_long = 5000;  // ms dat de tijd getoond wordt bij wissel
+    inline constexpr int time_display_long = 45000;  // ms dat de tijd getoond wordt bij wissel
     inline constexpr int time_display_short = 15000; // ms dat de tijd getoond wordt bij wissel
 
     // --- 4. HARDWARE INSTELLINGEN (PWM & Helderheid) ---

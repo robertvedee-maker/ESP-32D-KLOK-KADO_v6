@@ -21,6 +21,7 @@
 
 extern SystemState state; // Voor toegang tot de centrale 'state' struct
 
+
 // --- Helper functies voor het omzetten van data naar tekst of symbolen ---
 String getWindRoos(int graden)
 {
@@ -59,7 +60,7 @@ int getBeaufort(float ms)
 
 void addTickerSegment(String txt, uint16_t col);
 void drawQRCodeOnTFT(const char *data, int x, int y, int scale);
-void drawSetupModeActive();
+// void drawSetupModeActive();
 void drawWebConfigQRinDataPaneel();
 void evaluateSystemSafety();
 void finalizeSetupAndShowDashboard();
@@ -351,14 +352,20 @@ void updateDataPaneelVandaag()
         datSpr.fillCircle(xOp, tlY + 1, 4, TFT_YELLOW);
         datSpr.setTextDatum(BC_DATUM);
         datSpr.setTextFont(1);
-        if (xOp > 95) {datSpr.drawString(String(state.env.sunrise_str), xOp, tlY - 5);}
+        if (xOp > 95)
+        {
+            datSpr.drawString(String(state.env.sunrise_str), xOp, tlY - 5);
+        }
     }
     if (xOnder > 0 && xOnder < 170)
     {
         datSpr.fillCircle(xOnder, tlY + 1, 4, TFT_ORANGE);
         datSpr.setTextDatum(BC_DATUM);
         datSpr.setTextFont(1);
-        if (xOnder > 95) {datSpr.drawString(String(state.env.sunset_str), xOnder, tlY - 5);}
+        if (xOnder > 95)
+        {
+            datSpr.drawString(String(state.env.sunset_str), xOnder, tlY - 5);
+        }
     }
 
     float moonPos = (nuDecimal < 12) ? nuDecimal + 12 : nuDecimal - 12;
@@ -398,7 +405,7 @@ void updateDataPaneelForecast()
         datSpr2.setTextDatum(TR_DATUM);
         datSpr2.setTextFont(2);
         datSpr2.setTextColor(TFT_GOLD, TFT_BLACK);
-        String tMinMax = /*String(f.temp_min, 1) + " - " + */String(f.temp_max, 1);
+        String tMinMax = /*String(f.temp_min, 1) + " - " + */ String(f.temp_max, 1);
         datSpr2.drawString(tMinMax, 169 - 12, yPos + 12);
         datSpr2.drawString("c", 169, yPos + 10);
         datSpr2.drawCircle(165 - 8, yPos + 11, 2, TFT_GOLD);
@@ -474,56 +481,9 @@ void showNetworkInfo()
     tft.setTextColor(TFT_WHITE);
     tft.drawString("IP: " + WiFi.localIP().toString(), 140, 80);
 
-    // delay(3000);
-    // tft.fillScreen(TFT_BLACK);
 }
 
-void drawSetupModeActive()
-{
-    tft.fillScreen(TFT_BLACK);
-    tft.drawRoundRect(2, 2, 316, 166, 10, TFT_GOLD);
 
-    tft.drawBitmap(15, 15, image_DolphinWait_bits, 59, 54, TFT_WHITE);
-    tft.setTextFont(2);
-
-    // Check of er iemand verbonden is met het Access Point
-    // TIJDELIJKE TEST-OVERRIDE:
-    // int stations = 1; // Zet op 0 voor stap 1, op 1 voor stap 2
-    int stations = WiFi.softAPgetStationNum();
-
-    if (stations == 0)
-    {
-        // STAP 1: Gebruiker moet nog verbinden met WiFi
-        tft.setTextColor(TFT_GOLD);
-        tft.drawString("STAP 1: VERBINDEN", 15, 80);
-        tft.setTextColor(TFT_WHITE);
-        tft.drawString("Scan om te verbinden met:", 15, 100);
-        tft.setTextColor(TFT_SKYBLUE);
-        tft.drawString("SSID: Kado-Klok-Setup", 15, 120);
-
-        const char *qrWiFi = "WIFI:S:Kado-Klok-Setup;T:nopass;;";
-        drawQRCodeOnTFT(qrWiFi, 195, 35, 3);
-    }
-    else
-    {
-        // STAP 2: Gebruiker IS verbonden, stuur ze naar de pagina
-        tft.setTextColor(TFT_GREEN);
-        tft.drawString("STAP 2: CONFIGUREREN", 15, 80);
-        tft.setTextColor(TFT_WHITE);
-        tft.drawString("Verbonden! Scan nu om", 15, 100);
-        tft.drawString("de instellingen te openen:", 15, 120);
-
-        tft.setTextColor(TFT_SKYBLUE);
-        tft.drawString("http://192.168.4.1", 15, 140);
-
-        const char *qrURL = "http://192.168.4.1";
-        // Omdat de URL korter is, kunnen we de QR iets groter maken (Scale 3)
-        drawQRCodeOnTFT(qrURL, 195, 35, 3);
-    }
-
-    tft.setTextColor(TFT_LIGHTGREY);
-    tft.drawCentreString("SCAN MIJ", 245, 145, 1);
-}
 
 // ---   TEKENFUNCTIES ---
 void drawMoonPhase(int x, int y, int radius)
@@ -739,6 +699,7 @@ void handleTouchLadder()
     static unsigned long touchStart = 0;
     static bool isTouching = false;
     static unsigned long lastLog = 0;
+    static bool monitorBackgroundDrawn = false;
 
     // --- 1. AANRAKING DETECTIE ---
     if (touchVal < 55)
@@ -751,7 +712,7 @@ void handleTouchLadder()
             Serial.println(F("[TOUCH] Start meting..."));
         }
 
-        tft.fillCircle(145, 7, 4, TFT_BLACK); // Reset de indicator (wordt overschreven door de feedback-functie)
+        state.display.touch_indicator_color = TFT_BLACK; // Reset de indicatorkleur bij elke update, zodat we alleen feedback zien als we daadwerkelijk aan het drukken zijn
         unsigned long duration = millis() - touchStart;
 
         // DEBUG (alleen als we drukken)
@@ -768,17 +729,25 @@ void handleTouchLadder()
     else if (isTouching)
     { // --- VINGER ERAF: Hier gebeurt de actie ---
         unsigned long eindDuur = millis() - touchStart;
-        tft.fillCircle(145, 7, 4, TFT_BLACK);
+        state.display.touch_indicator_color = TFT_BLACK; // Reset de indicatorkleur
 
         // 1. ZONE: 2 - 5 SEC (Context acties)
         if (eindDuur >= 2000 && eindDuur < 5000)
         {
-            if (state.network.web_server_active)
+            // Als de server aan staat (Setup of Beheer), sluiten we nu ALTIJD alles af
+            if (state.network.web_server_active || state.network.is_setup_mode)
             {
-                state.display.show_config_qr = !state.display.show_config_qr;
+                deactivateWiFiAndServer();
+            }
+            else if (state.display.show_system_monitor)
+            {
+                // Als we in de systeemmonitor zitten, sluiten we die netjes af
+                state.display.show_system_monitor = false;
+                tft.fillScreen(TFT_BLACK);
             }
             else
             {
+                // Normale werking: toggle alert display
                 state.display.force_alert_display = !state.display.force_alert_display;
                 state.display.alert_show_until = state.display.force_alert_display ? millis() + 600000UL : 0;
             }
@@ -790,15 +759,28 @@ void handleTouchLadder()
         {
             if (!state.network.web_server_active)
             {
+                tft.fillScreen(TFT_BLACK);
                 activateWiFiAndServer(); // Start de server pas NU
-                state.display.force_ticker_refresh = true;
+                // state.display.force_ticker_refresh = true;
             }
         }
 
         // 3. ZONE: 8 - 11 SEC (De Machinekamer: Systeem Status)
         else if (eindDuur >= 8000 && eindDuur < 11000)
         {
-            state.display.show_system_status = !state.display.show_system_status;
+            state.display.show_system_monitor = !state.display.show_system_monitor;
+
+            if (state.display.show_system_monitor)
+            {
+                monitorBackgroundDrawn = true; // We gaan naar de systeemmonitor, dus we moeten het achtergrondscherm tekenen
+                tft.fillScreen(TFT_BLACK); // Scherm schoonvegen voor het dashboard
+            }
+            else
+            {
+                monitorBackgroundDrawn = false; // We verlaten de systeemmonitor, dus we moeten het achtergrondscherm opnieuw tekenen
+                tft.fillScreen(TFT_BLACK);
+                state.display.force_ticker_refresh = true; // Netjes terugkeren
+            }
         }
 
         // --- RESET VOOR DE VOLGENDE KEER ---
@@ -806,9 +788,14 @@ void handleTouchLadder()
         isTouching = false;
         touchStart = 0;
         state.env.is_touching = false;
+        state.display.touch_indicator_color = TFT_BLACK;
 
         // Update direct het datapaneel voor visuele feedback
-        manageDataPanels();
+        // Update alleen de panelen als we NIET in een speciale modus zitten
+        if (!state.network.is_setup_mode && !state.network.web_server_active && !state.display.show_system_monitor)
+        {
+            manageDataPanels();
+        }
     }
 }
 
@@ -839,17 +826,17 @@ void updateTouchLedFeedback(unsigned long duration)
     if (duration < 2000)
     {
         digitalWrite(Config::pin_fingerprint_led, (millis() % 400 < 100)); // Klaarstaan (kort flitsje)
-        tft.fillCircle(145, 7, 4, TFT_YELLOW);
+        state.display.touch_indicator_color = TFT_YELLOW;
     }
     else if (duration < 5000)
     {
         digitalWrite(Config::pin_fingerprint_led, (millis() % 200 < 100)); // Snel (Actie/Alert zone)
-         tft.fillCircle(145, 7, 4, TFT_CYAN);
+        state.display.touch_indicator_color = TFT_CYAN;
     }
     else if (duration < 8000)
     {
         digitalWrite(Config::pin_fingerprint_led, HIGH); // Constant (WebConfig zone)
-        tft.fillCircle(145, 7, 4, TFT_MAGENTA);
+        state.display.touch_indicator_color = TFT_MAGENTA;
     }
     else if (duration < 11000)
     {
@@ -859,11 +846,12 @@ void updateTouchLedFeedback(unsigned long duration)
                      (cycle >= 300 && cycle < 900 && cycle % 300 < 200) || // O
                      (cycle >= 900 && cycle < 1200 && cycle % 100 < 50);   // S
         digitalWrite(Config::pin_fingerprint_led, ledOn);
+        state.display.touch_indicator_color = TFT_RED;
     }
     else
     {
         digitalWrite(Config::pin_fingerprint_led, LOW); // Abort
-        tft.fillCircle(145, 7, 4, TFT_BLACK);
+        state.display.touch_indicator_color = TFT_BLACK;
     }
 }
 

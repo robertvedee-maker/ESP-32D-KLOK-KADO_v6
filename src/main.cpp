@@ -32,6 +32,7 @@ void manageStatusLed();
 void renderTicker();
 void setup();
 void showSetupInstructionPanel();
+void drawSystemMonitor();
 
 unsigned long lastWeatherUpdate = 0;
 unsigned long lastSensorUpdate = 0;
@@ -112,7 +113,6 @@ void setup()
         Serial.println(F("[DEBUG] FOUT: Kon Preferences 'config' niet openen!"));
     }
 
-
     Serial.println(F("--- Systeem Start Voltooid ---"));
 
     // HELDERHEID TOEPASSEN (Hardware-fade naar de geladen waarde)
@@ -136,15 +136,7 @@ void setup()
 
 void loop()
 {
-
-    // static unsigned long debugTicker = 0;
-    // if (millis() - debugTicker > 1000)
-    // {
-    //     Serial.printf(F("[STATUS] Ticker Segments: %d, X-Pos: %d\n"), tickerSegments.size(), state.display.ticker_x);
-    //     debugTicker = millis();
-    // }
-
-    // In de normale loop
+    // 1. TOUCH & LED (Altijd eerst voor maximale responsiviteit)
     static unsigned long lastTouchTick = 0;
     if (millis() - lastTouchTick > 30)
     {
@@ -153,54 +145,52 @@ void loop()
         lastTouchTick = millis();
     }
 
-    // struct NetworkState {
-    //     // ... bestaande velden ...
-    //     bool ota_enabled = true; // Voor nu op true, later wordt dit false bij boot
-    // };
+    // 2. SETUP / BEHEER MODUS (De "Blokkerende" Mode)
+    // We checken of de setup-vlag óf de webserver actief is
+    if (state.network.is_setup_mode || state.network.web_server_active)
+    {
+        static unsigned long lastSetupRedraw = 0;
 
-    // // Alleen OTA afhandelen als de vlag aan staat
-    // if (state.network.ota_enabled) {
-    //     ArduinoOTA.handle();
-    // }
+        // Ververs het scherm 1x per seconde voor de aftelbalk en status
+        if (millis() - lastSetupRedraw > 1000)
+        {
+            drawSetupModeActive();
+            lastSetupRedraw = millis();
+        }
 
-    // --- BLOK 0 & 1 (REALTIME) ---
+        // Check of de 10 minuten om zijn
+        manageServerTimeout();
 
+        yield();
+        return; // Stop de rest van de loop om Heap te sparen voor de Webserver
+    }
+
+    // 3. NORMALE KLOK-OPERATIE (Alleen als setup NIET actief is)
+
+    // Herstart check
     if (state.network.pending_restart && millis() > state.network.restart_at)
     {
-        Serial.println(F("[SYSTEM] Geplande herstart wordt nu uitgevoerd..."));
         ESP.restart();
     }
 
-    if (state.network.is_setup_mode)
+
+
+    // Achtergrond taken (elke 10 sec)
+    static unsigned long lastTenSecondTick = 0;
+    if (millis() - lastTenSecondTick > 10000)
     {
-        // Laat de achtergrond-taken (zoals de Webserver en DNS) hun werk doen
-        yield();
-        return;
+        handleSensors();
+        manageBrightness();
+        manageTimeFunctions();
+        evaluateSystemSafety();
+        lastTenSecondTick = millis();
     }
 
-    // Update de globale status vlag zodat de rest van de code weet waar we aan toe zijn
-    state.network.wifi_connected = (WiFi.status() == WL_CONNECTED);
-
-    // ArduinoOTA.handle();
-
-    // // --- 2. DE "GEEN DATA" LOCK ---
-    // if (state.network.owm_key.length() < 10)
-    // {
-    //     // We tekenen ENKEL de klok en het instructie-paneel
-    //     static time_t last_sec = 0;
-    //     time_t nu = time(nullptr);
-    //     if (nu != last_sec)
-    //     {
-    //         last_sec = nu;
-    //         updateClock();               // Klok werkt altijd
-    //         showSetupInstructionPanel(); // Toon IP op de plek van het weer
-    //     }
-    //     return; // STOP HIER: Doe geen ticker, geen panels, geen weer-fetch
-    // }
-
-
-
-    // --- BLOK 2: DE KLOK (ELKE SECONDE) ---
+    // --- BLOK 6: VISUEEL (TICKER & ANIMATIE) ---
+    // Alleen uitvoeren als we NIET in setup of beheer-modus zitten
+    if (!state.network.is_setup_mode && !state.network.web_server_active && !state.display.show_system_monitor)
+    {
+    // Klok update (elke sec)
     static time_t last_now = 0;
     time_t now = time(nullptr);
     if (now != last_now)
@@ -209,59 +199,171 @@ void loop()
         updateClock();
     }
 
-    // --- BLOK 3: SENSOREN & BEHEER (ELKE 10 SECONDEN) ---
-    static unsigned long lastTenSecondTick = 0;
-    if (millis() - lastTenSecondTick > 10000)
+        renderTicker();
+        manageDataPanels();
+        manageWeatherUpdates();
+    }
+    else if (state.display.show_system_monitor)
     {
-        handleSensors();
-        manageBrightness();
-        manageTimeFunctions();
-        manageServerTimeout();
-        evaluateSystemSafety();
-        manageEasterEggTimer();
-        // Als we in de toekomst OTA willen, is dit ook een goed moment om even te checken
-        // if (state.network.ota_enabled) { ArduinoOTA.handle(); }
-        lastTenSecondTick = millis();
-
-        // Serial.printf(F("[SYSTEM] Heap vrij: %u bytes\n"), ESP.getFreeHeap());
+        static unsigned long lastMonitorUpdate = 0;
+        if (millis() - lastMonitorUpdate > 500)
+        { // Ververs elke halve seconde
+            drawSystemMonitor();
+            lastMonitorUpdate = millis();
+        }
     }
-
-    // --- BLOK 4: DATA UPDATES  ---
-    manageWeatherUpdates();
-
-    // --- BLOK 5: PANELEN & UI ---
-    handleWiFiEco();
-
-    // --- BLOK 6: VISUEEL (TICKER & ANIMATIE) ---
-    // if (!state.display.is_animating && !state.network.is_updating)
-    // {
-    //     renderTicker();
-    // }
-    renderTicker();
-    manageDataPanels();
-
-    // handleServerControl();
-    // --- S3 VOORBEREIDING (UITGECOMMENTARIEERD) ---
-    /*
-    if (state.network.ota_enabled) {
-        ArduinoOTA.handle();
+    else
+    {
+        // Optioneel: als je toch iets op de achtergrond wilt laten draaien
+        // (bijvoorbeeld alleen de klok-tijd intern bijhouden), kan dat hier.
+        yield();
     }
-    */
-
-    // // Check voor geplande herstart
-    // if (state.network.pending_restart && millis() > state.network.restart_at)
-    // {
-    //     Serial.println(F("[SYSTEM] Geplande herstart wordt nu uitgevoerd..."));
-    //     ESP.restart();
-    // }
-
-    // --- DEBUG: Toon CPU temperatuur ---
-    // tft.setTextFont(2);
-    // tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-    // tft.drawFloat(state.env.case_temp, 1, 5, 135); // Voor debug: Case temp
-
-    // --- DEBUG: Toon vrije RAM in KB ---
-    // tft.setTextFont(2);
-    // tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-    // tft.drawNumber(ESP.getFreeHeap() / 1024, 5, 135); // Toont vrije KB's
 }
+
+// void loop()
+// {
+
+//     // static unsigned long debugTicker = 0;
+//     // if (millis() - debugTicker > 1000)
+//     // {
+//     //     Serial.printf(F("[STATUS] Ticker Segments: %d, X-Pos: %d\n"), tickerSegments.size(), state.display.ticker_x);
+//     //     debugTicker = millis();
+//     // }
+
+//     // In de normale loop
+//     static unsigned long lastTouchTick = 0;
+//     if (millis() - lastTouchTick > 30)
+//     {
+//         handleTouchLadder();
+//         manageStatusLed();
+//         lastTouchTick = millis();
+//     }
+
+//     // struct NetworkState {
+//     //     // ... bestaande velden ...
+//     //     bool ota_enabled = true; // Voor nu op true, later wordt dit false bij boot
+//     // };
+
+//     // // Alleen OTA afhandelen als de vlag aan staat
+//     // if (state.network.ota_enabled) {
+//     //     ArduinoOTA.handle();
+//     // }
+
+//     // --- BLOK 0 & 1 (REALTIME) ---
+
+//     // --- BLOK 0: SETUP & CONFIG MODUS ---
+//     if (state.network.is_setup_mode || state.network.web_server_active)
+//     {
+//         static unsigned long lastSetupRedraw = 0;
+
+//         // Ververs het setup-scherm elke 1000ms voor de aftelbalk en status
+//         if (millis() - lastSetupRedraw > 1000) {
+//             drawSetupModeActive();
+//             lastSetupRedraw = millis();
+//         }
+
+//         // Vergeet de timeout check niet, anders blijft hij in setup hangen
+//         manageServerTimeout();
+
+//         yield(); // Geef de WiFi-stack tijd
+//         return;  // De rest van de klok/ticker hoeft nu niet te draaien
+//     }
+
+//     if (state.network.pending_restart && millis() > state.network.restart_at)
+//     {
+//         Serial.println(F("[SYSTEM] Geplande herstart wordt nu uitgevoerd..."));
+//         ESP.restart();
+//     }
+
+//     if (state.network.is_setup_mode)
+//     {
+//         // Laat de achtergrond-taken (zoals de Webserver en DNS) hun werk doen
+//         yield();
+//         return;
+//     }
+
+//     // Update de globale status vlag zodat de rest van de code weet waar we aan toe zijn
+//     state.network.wifi_connected = (WiFi.status() == WL_CONNECTED);
+
+//     // ArduinoOTA.handle();
+
+//     // // --- 2. DE "GEEN DATA" LOCK ---
+//     // if (state.network.owm_key.length() < 10)
+//     // {
+//     //     // We tekenen ENKEL de klok en het instructie-paneel
+//     //     static time_t last_sec = 0;
+//     //     time_t nu = time(nullptr);
+//     //     if (nu != last_sec)
+//     //     {
+//     //         last_sec = nu;
+//     //         updateClock();               // Klok werkt altijd
+//     //         showSetupInstructionPanel(); // Toon IP op de plek van het weer
+//     //     }
+//     //     return; // STOP HIER: Doe geen ticker, geen panels, geen weer-fetch
+//     // }
+
+//     // --- BLOK 2: DE KLOK (ELKE SECONDE) ---
+//     static time_t last_now = 0;
+//     time_t now = time(nullptr);
+//     if (now != last_now)
+//     {
+//         last_now = now;
+//         updateClock();
+//     }
+
+//     // --- BLOK 3: SENSOREN & BEHEER (ELKE 10 SECONDEN) ---
+//     static unsigned long lastTenSecondTick = 0;
+//     if (millis() - lastTenSecondTick > 10000)
+//     {
+//         handleSensors();
+//         manageBrightness();
+//         manageTimeFunctions();
+//         manageServerTimeout();
+//         evaluateSystemSafety();
+//         manageEasterEggTimer();
+//         // Als we in de toekomst OTA willen, is dit ook een goed moment om even te checken
+//         // if (state.network.ota_enabled) { ArduinoOTA.handle(); }
+//         lastTenSecondTick = millis();
+
+//         // Serial.printf(F("[SYSTEM] Heap vrij: %u bytes\n"), ESP.getFreeHeap());
+//     }
+
+//     // --- BLOK 4: DATA UPDATES  ---
+//     manageWeatherUpdates();
+
+//     // --- BLOK 5: PANELEN & UI ---
+//     handleWiFiEco();
+
+//     // --- BLOK 6: VISUEEL (TICKER & ANIMATIE) ---
+//     // if (!state.display.is_animating && !state.network.is_updating)
+//     // {
+//     //     renderTicker();
+//     // }
+//     renderTicker();
+//     manageDataPanels();
+
+//     // handleServerControl();
+//     // --- S3 VOORBEREIDING (UITGECOMMENTARIEERD) ---
+//     /*
+//     if (state.network.ota_enabled) {
+//         ArduinoOTA.handle();
+//     }
+//     */
+
+//     // // Check voor geplande herstart
+//     // if (state.network.pending_restart && millis() > state.network.restart_at)
+//     // {
+//     //     Serial.println(F("[SYSTEM] Geplande herstart wordt nu uitgevoerd..."));
+//     //     ESP.restart();
+//     // }
+
+//     // --- DEBUG: Toon CPU temperatuur ---
+//     // tft.setTextFont(2);
+//     // tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+//     // tft.drawFloat(state.env.case_temp, 1, 5, 135); // Voor debug: Case temp
+
+//     // --- DEBUG: Toon vrije RAM in KB ---
+//     // tft.setTextFont(2);
+//     // tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+//     // tft.drawNumber(ESP.getFreeHeap() / 1024, 5, 135); // Toont vrije KB's
+// }

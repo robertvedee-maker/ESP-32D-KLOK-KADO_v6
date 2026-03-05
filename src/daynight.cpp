@@ -14,14 +14,33 @@ void manageTimeFunctions();
 void updateDisplayBrightness(int pwm);
 
 //      --- HELDERHEID EN ZON-LOGICA: Beheer van de automatische aanpassing van de helderheid op basis van tijd en veiligheid ---
-void updateDateTimeStrings(struct tm *timeinfo)
+void updateDateTimeStrings() // Geen parameters nodig, we halen het zelf op
 {
-    snprintf(state.env.current_time_str, sizeof(state.env.current_time_str),
-             "%02d:%02d:%02d", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+    time_t now;
+    struct tm timeinfo;
+    time(&now);
+    localtime_r(&now, &timeinfo);
 
+    // Dagen van de week (0 = Zondag)
+    const char* days[] = {"ZO", "MA", "DI", "WO", "DO", "VR", "ZA"};
+
+    // Tijd: HH:MM:SS
+    snprintf(state.env.current_time_str, sizeof(state.env.current_time_str),
+             "%02d:%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+
+    // Datum: DAG DD-MM-YYYY
     snprintf(state.env.current_date_str, sizeof(state.env.current_date_str),
-             "%02d-%02d-%04d", timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year + 1900);
+             "%s %02d-%02d-%04d", days[timeinfo.tm_wday], timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
 }
+
+// void updateDateTimeStrings(struct tm *timeinfo)
+// {
+//     snprintf(state.env.current_time_str, sizeof(state.env.current_time_str),
+//              "%02d:%02d:%02d", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+
+//     snprintf(state.env.current_date_str, sizeof(state.env.current_date_str),
+//              "%02d-%02d-%04d", timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year + 1900);
+// }
 
 //      --- HOOFDLOGICA VOOR HET BEHEREN VAN DE TIJD EN HELDERHEID (Zon-Logica + Veiligheids-override) ---
 void manageTimeFunctions()

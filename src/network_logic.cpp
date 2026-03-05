@@ -21,7 +21,7 @@
 // Forward declarations
 void renderTicker();
 void updateTickerSegments();
-void drawSetupModeActive();
+// void drawSetupModeActive();
 void showNetworkInfo();
 
 DNSServer dnsServer;
@@ -84,48 +84,48 @@ void handleWiFiEco()
     }
 }
 
-// --- 2. DE SETUP MODUS (Als WiFi faalt) ---
-void startSetupMode()
-{
-    state.network.is_setup_mode = true; // De kraan gaat dicht voor de rest
+// // --- 2. DE SETUP MODUS (Als WiFi faalt) ---
+// void startSetupMode()
+// {
+//     state.network.is_setup_mode = true; // De kraan gaat dicht voor de rest
 
-    drawSetupModeActive();
+//     drawSetupModeActive();
 
-    // Wifi Access Point starten
-    WiFi.mode(WIFI_AP);
+//     // Wifi Access Point starten
+//     WiFi.mode(WIFI_AP);
 
-    IPAddress apIP(192, 168, 4, 1);
-    WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+//     IPAddress apIP(192, 168, 4, 1);
+//     WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
 
-    WiFi.softAP(SECRET_AP_SSID, SECRET_AP_PASSWORD);
+//     WiFi.softAP(SECRET_AP_SSID, SECRET_AP_PASSWORD);
 
-    MDNS.begin(SECRET_AP_SSID); // Bereikbaar via http://xxx.local
+//     MDNS.begin(SECRET_AP_SSID); // Bereikbaar via http://xxx.local
 
-    // Wacht even tot de WiFi-stack gesetteld is
-    delay(2000);
+//     // Wacht even tot de WiFi-stack gesetteld is
+//     delay(2000);
 
-    initWebServer();
+//     initWebServer();
 
-    Serial.println(F("Setup Mode gestart op 192.168.4.1"));
+//     Serial.println(F("Setup Mode gestart op 192.168.4.1"));
 
-// // Hoe je dit "Live" maakt:
-// // In je setup() of loop() waar je de DNS Server en SoftAP afhandelt voor de config-modus, moet je deze functie af en toe verversen.
-// // dit is alvast een voorbereiding voor de S3. in de 32D is de webconfig alleen beschikbaar via 5 seconde touch op de ladder, 
-// // dus we hoeven hier nog geen timer of zo te maken. 
-// // We checken gewoon in de loop() of er een verandering is in het aantal verbonden stations, en als dat zo is, 
-// // roepen we drawSetupModeActive() aan om het scherm te verversen.
+// // // Hoe je dit "Live" maakt:
+// // // In je setup() of loop() waar je de DNS Server en SoftAP afhandelt voor de config-modus, moet je deze functie af en toe verversen.
+// // // dit is alvast een voorbereiding voor de S3. in de 32D is de webconfig alleen beschikbaar via 5 seconde touch op de ladder, 
+// // // dus we hoeven hier nog geen timer of zo te maken. 
+// // // We checken gewoon in de loop() of er een verandering is in het aantal verbonden stations, en als dat zo is, 
+// // // roepen we drawSetupModeActive() aan om het scherm te verversen.
 
-// // In de Setup-Modus loop:
-// static int lastStationCount = -1;
-// int currentStations = WiFi.softAPgetStationNum();
+// // // In de Setup-Modus loop:
+// // static int lastStationCount = -1;
+// // int currentStations = WiFi.softAPgetStationNum();
 
-// if (currentStations != lastStationCount) {
-//     drawSetupModeActive(); // Herteken het scherm als er iemand bijkomt of weggaat
-//     lastStationCount = currentStations;
+// // if (currentStations != lastStationCount) {
+// //     drawSetupModeActive(); // Herteken het scherm als er iemand bijkomt of weggaat
+// //     lastStationCount = currentStations;
+// // }
+
+
 // }
-
-
-}
 
 // --- 3. DE HOOFD WIFI FUNCTIE ---
 void setupWiFi()
@@ -262,42 +262,50 @@ void activateWiFiAndServer()
     }
 }
 
-void manageServerTimeout()
-{
-    if (state.network.web_server_active)
-    {
-
-        // 600.000 ms = 10 minuten
-        if (millis() - state.network.server_start_time >= 600000)
-        {
-
-            Serial.println(F("[NET] 10 minuten voorbij. Server wordt gesloten..."));
-
-            server.end();
-            MDNS.end();
-            state.network.web_server_active = false;
-            state.display.show_config_qr = false; // Zorg dat de QR-code ook verdwijnt
-
-            // Optioneel: Knipper de LED 5x als afscheid
-            for (int i = 0; i < 5; i++)
-            {
-                digitalWrite(Config::pin_fingerprint_led, !digitalRead(2));
-                delay(50);
-            }
-            digitalWrite(Config::pin_fingerprint_led, LOW);
+void manageServerTimeout() {
+    if (state.network.web_server_active) {
+        if (millis() - state.network.server_start_time >= 600000UL) {
+            deactivateWiFiAndServer();
         }
     }
 }
 
-// void deactivateWiFiAndServer()
-// {
-//     server.end();
-//     state.network.web_server_active = false;
-//     state.display.show_config_qr = false; // Zorg dat de QR-code ook verdwijnt
-//     // Optioneel: WiFi weer naar laag verbruik als je geen updates nodig hebt
-//     // WiFi.disconnect();
-//     // WiFi.mode(WIFI_OFF);
-//     digitalWrite(Config::pin_fingerprint_led, LOW);
+void deactivateWiFiAndServer() 
+{
+    Serial.println(F("[NET] Systeem herstellen naar normale modus..."));
 
-//     Serial.println(F("[NET] Server offline"));
-// }
+    // 1. Stop de actieve netwerkservices
+    server.end();
+    MDNS.end();
+    WiFi.softAPdisconnect(true); // Sluit het Access Point en verwijder de SSID uit de lucht
+    
+    // 2. Reset ALLE status-vlaggen
+    state.network.web_server_active = false;
+    state.network.is_setup_mode = false;     // Cruciaal: hiermee verlaat de loop() het setup-blok
+    state.display.show_config_qr = false;
+    state.network.server_start_time = 0;     // Reset de timer
+    
+    // 3. Forceer een UI-verversing
+    // We wissen het scherm om resten van de setup-pagina (QR, Goud/Groen kader) te verwijderen
+    tft.fillScreen(TFT_BLACK); 
+    state.display.force_ticker_refresh = true;
+    state.display.force_alert_display = false; // Stop eventuele geforceerde meldingen
+
+    // 4. Visuele & Seriële feedback
+    Serial.println(F("[SYSTEM] Webserver gesloten. Terug naar Ticker/Klok."));
+    
+    // Knipper de LED 3x traag als bevestiging van afsluiten
+    for (int i = 0; i < 3; i++) {
+        digitalWrite(Config::pin_fingerprint_led, HIGH);
+        delay(150);
+        digitalWrite(Config::pin_fingerprint_led, LOW);
+        delay(150);
+    }
+
+    // 5. Herstel WiFi-verbinding (indien nodig)
+    // Als de klok normaal op je thuis-WiFi draait, zorgen we dat hij weer verbindt
+    if (WiFi.status() != WL_CONNECTED && state.network.ssid.length() > 2) {
+        Serial.println(F("[NET] WiFi verbinding herstellen..."));
+        WiFi.begin(state.network.ssid.c_str(), state.network.pass.c_str());
+    }
+}

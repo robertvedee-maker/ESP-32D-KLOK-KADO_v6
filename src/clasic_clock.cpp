@@ -45,6 +45,8 @@ void renderFace(int h, int m, int s)
     // 1. Wis de klok sprite intern
     clkSpr.fillSprite(TFT_BLACK);
 
+    clkSpr.fillCircle(145, 7, 4, state.display.touch_indicator_color); // Touch-indicator in de hoek van de klok (kan van kleur veranderen)
+
     // 2. Teken de wijzerplaat cirkel
     clkSpr.fillCircle(CLOCK_R, CLOCK_R, CLOCK_R, CLK_BG);
 
@@ -80,7 +82,7 @@ void renderFace(int h, int m, int s)
     // Luchtdruk (Y=65)
     clkSpr.setTextDatum(MC_DATUM);
     char pBuf[16];
-    sprintf(pBuf, "%.0f hPa", state.env.press_local);
+    snprintf(pBuf, sizeof(pBuf), "%.0f hPa", state.env.press_local);
     clkSpr.drawString(pBuf, CLOCK_R, 95);
 
     // 6. Teken de wijzers

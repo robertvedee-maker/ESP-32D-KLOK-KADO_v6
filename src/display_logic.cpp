@@ -414,13 +414,19 @@ void renderTicker()
         updateTickerSegments();
     }
 
-    // 2. DE GEFORCEERDE WISSEL (Bijv. bij Alarm)
+    // 2. DE GEFORCEERDE WISSEL (Bijv. bij Alarm of na WebConfig)
     if (state.display.force_ticker_refresh)
     {
-        // Hier mag hij WEL verspringen, want we willen de oude tekst NU weg hebben
-        state.display.ticker_x = tft.width(); // Reset naar schermbreedte voor de nieuwe tekst
+        // Zet de ticker weer helemaal rechts buiten beeld voor een frisse start
+        state.display.ticker_x = tft.width(); 
+        
+        // Ververs de inhoud direct met de mogelijk nieuwe data uit de WebConfig
         updateTickerSegments();
+        
         state.display.force_ticker_refresh = false;
+        
+        // Optioneel: Forceer ook een update van de andere panelen
+        // manageDataPanels(); 
     }
 }
 
@@ -496,26 +502,33 @@ void performTransition(TFT_eSprite *oldSpr, TFT_eSprite *newSpr)
 //          --- HOOFDFUNCTIE: Beheer van de data-panelen en de wissel daartussen ---
 void manageDataPanels()
 {
-    static bool lastQRState = false;
+    // static bool lastQRState = false;
 
-    if (state.network.web_server_active && state.display.show_config_qr)
-    {
-        // Alleen de ALLEREERSTE keer tekenen als de vlag op true gaat
-        if (!lastQRState)
-        {
-            drawWebConfigQRinDataPaneel();
-            lastQRState = true;
-            Serial.println(F("[PANEEL] QR-code eenmalig getekend. Rust hersteld."));
-        }
-        return; // We doen NIKS meer zolang de vlag true is
-    }
-    lastQRState = false; // Reset de vlag zodra de QR uit gaat
+    // if (state.network.web_server_active && state.display.show_config_qr)
+    // {
+    //     // Alleen de ALLEREERSTE keer tekenen als de vlag op true gaat
+    //     if (!lastQRState)
+    //     {
+    //         drawWebConfigQRinDataPaneel();
+    //         lastQRState = true;
+    //         Serial.println(F("[PANEEL] QR-code eenmalig getekend. Rust hersteld."));
+    //     }
+    //     return; // We doen NIKS meer zolang de vlag true is
+    // }
+    // lastQRState = false; // Reset de vlag zodra de QR uit gaat
 
-    // Als de server niet meer actief is, zorgen we dat de vlag ook weer op false gaat
-    if (!state.network.web_server_active)
+    // // Als de server niet meer actief is, zorgen we dat de vlag ook weer op false gaat
+    // if (!state.network.web_server_active)
+    // {
+    //     state.display.show_config_qr = false;
+    // }
+
+    // SPoT-Check: Als we in een andere modus zitten, doen we NIETS
+    if (state.network.is_setup_mode || state.network.web_server_active || state.display.show_system_monitor)
     {
-        state.display.show_config_qr = false;
+        return; 
     }
+
 
     // 1. Check of we überhaupt al een succesvolle update hebben gehad
     if (!state.weather.data_is_fresh)
