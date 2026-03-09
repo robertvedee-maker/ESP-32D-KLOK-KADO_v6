@@ -13,7 +13,7 @@
 #include "global_data.h"
 
 // 1. De rauwe rekenaar (vult de buffer)
-void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant)
+void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int Variant)
 {
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo))
@@ -38,23 +38,19 @@ void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, in
 
     float totaalDagen = (j * 365.25) + (m * 30.44) + d;
     static int factCounter = 0;
-    // int variant = (factCounter++) % 13;
-        int variant;
-    if (forceVariant != -1) {
-        variant = forceVariant; // Forceer bijv. variant 0
-    } else {
-        static int factCounter = 0;
-        variant = (factCounter++) % 13;
-    }
-
-
+    int variant;
+  
+    variant = (factCounter++) % 13;
 
     // Gebruik snprintf om direct in de buffer te schrijven
     if (variant == 0)
-        snprintf(buffer, bufferSize, "JE BENT %dj, %dm en %dd OUD!", j, m, d);
-    else if (variant == 1)
-        snprintf(buffer, bufferSize, "JE REISDE %ld MILJOEN KM DOOR DE RUIMTE!", (long)((totaalDagen / 365.25) * 940));
 
+        snprintf(buffer, bufferSize, "JE BENT %dj, %dm en %dd OUD!", j, m, d);
+
+    else if (variant == 1)
+
+        snprintf(buffer, bufferSize, "JE REISDE %ld MILJOEN KM DOOR DE RUIMTE!", (long)((totaalDagen / 365.25) * 940));
+        
     else if (variant == 2)
     {
         int manen = (int)(totaalDagen / 29.53);
@@ -107,7 +103,7 @@ void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, in
     else if (variant == 12)
         snprintf(buffer, bufferSize, "JE PRODUCEERDE %ld KM HAAR!", (long)(totaalDagen * 35.0 / 1000.0));
 
-    // Serial.printf("[EASTER-EGG] Fact Counter: %d, Tekst: %s\n", factCounter, buffer);
+    Serial.printf("[EASTER-EGG] Fact Counter: %d, Variant: %d\n", factCounter, variant);
 }
 
 // 2. De Wrapper (haalt data uit de State en bouwt de zin)
@@ -121,7 +117,7 @@ bool vulGepersonaliseerdFeitje(char *targetBuffer, size_t bufferSize)
         return false;
 
     char factTmp[90]; // Tijdelijke buffer voor het feitje zelf
-    vulEasterEggTekst(factTmp, sizeof(factTmp), gD, gM, gJ, 0); // Forceer variant 0 (leeftijd) voor het feitje
+    vulEasterEggTekst(factTmp, sizeof(factTmp), gD, gM, gJ, -1); // Use -1 to get random variant
 
     // Bouw de uiteindelijke zin in de TickerSegment buffer
     snprintf(targetBuffer, bufferSize, " ;P %s, %s :D ", state.user.name.c_str(), factTmp);

@@ -6,12 +6,14 @@
 #include "daynight.h"
 #include "global_data.h"
 #include "secret.h"
-#include <SolarCalculator.h>
+// #include <SolarCalculator.h>
 
 // Forward declaration
 void manageBrightness();
 void manageTimeFunctions();
 void updateDisplayBrightness(int pwm);
+
+static float lastSunrise = -1.0; // Voor debuggen: onthoud de laatste sunrise tijd om te zien wanneer deze verandert
 
 //      --- HELDERHEID EN ZON-LOGICA: Beheer van de automatische aanpassing van de helderheid op basis van tijd en veiligheid ---
 void updateDateTimeStrings() // Geen parameters nodig, we halen het zelf op
@@ -22,7 +24,7 @@ void updateDateTimeStrings() // Geen parameters nodig, we halen het zelf op
     localtime_r(&now, &timeinfo);
 
     // Dagen van de week (0 = Zondag)
-    const char* days[] = {"ZO", "MA", "DI", "WO", "DO", "VR", "ZA"};
+    const char *days[] = {"ZO", "MA", "DI", "WO", "DO", "VR", "ZA"};
 
     // Tijd: HH:MM:SS
     snprintf(state.env.current_time_str, sizeof(state.env.current_time_str),
@@ -45,34 +47,89 @@ void updateDateTimeStrings() // Geen parameters nodig, we halen het zelf op
 //      --- HOOFDLOGICA VOOR HET BEHEREN VAN DE TIJD EN HELDERHEID (Zon-Logica + Veiligheids-override) ---
 void manageTimeFunctions()
 {
+
+    // Helper function to convert epoch time to decimal hours
+    auto getDecimalTime = [](time_t epoch) -> float
+    {
+        if (epoch == 0)
+            return -100.0f; // Buiten beeld als er geen data is
+        struct tm ltm;
+        localtime_r(&epoch, &ltm); // Gebruik de veilige variant
+        return ltm.tm_hour + (ltm.tm_min / 60.0f);
+    };
+
+    // --- 1. TIJD SYNC CHECK ---
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo))
         return;
 
-    time_t now = time(nullptr);
-    double transit, sunrise, sunset;
+    // --- 2. ZON: EPOCH -> DECIMAL & STRINGS ---
+    if (state.weather.today.sun_rise > 0)
+    {
+        state.env.sunrise_local = getDecimalTime((time_t)state.weather.today.sun_rise);
+        state.env.sunset_local = getDecimalTime((time_t)state.weather.today.sun_set);
 
-    calcSunriseSunset(now, SECRET_LAT, SECRET_LON, transit, sunrise, sunset);
+        // Strings vullen voor de labels (Sunrise)
+        int rH = (int)state.env.sunrise_local;
+        int rM = (int)((state.env.sunrise_local - rH) * 60);
+        snprintf(state.env.sunrise_str, sizeof(state.env.sunrise_str), "%02d:%02d", rH, rM);
 
-    double utcOffset = (timeinfo.tm_isdst > 0) ? 2.0 : 1.0;
-    state.env.sunrise_local = sunrise + utcOffset;
-    state.env.sunset_local = sunset + utcOffset;
+        // Strings vullen voor de labels (Sunset)
+        int sH = (int)state.env.sunset_local;
+        int sM = (int)((state.env.sunset_local - sH) * 60);
+        snprintf(state.env.sunset_str, sizeof(state.env.sunset_str), "%02d:%02d", sH, sM);
+    }
 
-    // Direct de strings vullen in de state
-    int rH = (int)state.env.sunrise_local;
-    int rM = (int)((state.env.sunrise_local - rH) * 60);
-    snprintf(state.env.sunrise_str, sizeof(state.env.sunrise_str), "%02d:%02d", rH, rM);
+    // --- 3. MAAN: EPOCH -> DECIMAL ---
+    // We hergebruiken getDecimalTime zodat de maan op dezelfde schaal als de zon staat
+    if (state.weather.today.moon_rise > 0)
+    {
+        // Deze variabelen kun je nu direct gebruiken in je distMaanOp berekening
+        state.env.moonrise_local = getDecimalTime((time_t)state.weather.today.moon_rise);
+        state.env.moonset_local = getDecimalTime((time_t)state.weather.today.moon_set);
+    }
 
-    int sH = (int)state.env.sunset_local;
-    int sM = (int)((state.env.sunset_local - sH) * 60);
-    snprintf(state.env.sunset_str, sizeof(state.env.sunset_str), "%02d:%02d", sH, sM);
+
+    if (state.env.sunrise_local != lastSunrise)
+    {
+        Serial.printf("[TIME] Sunrise: %.2f, Sunset: %.2f, Moonrise: %.2f, Moonset: %.2f\n",
+                      state.env.sunrise_local, state.env.sunset_local,
+                      state.env.moonrise_local, state.env.moonset_local);
+        lastSunrise = state.env.sunrise_local;
+    }
 }
+
+// void manageTimeFunctions()
+// {
+//     struct tm timeinfo;
+//     if (!getLocalTime(&timeinfo))
+//         return;
+
+//     time_t now = time(nullptr);
+//     double transit, sunrise, sunset;
+
+//     calcSunriseSunset(now, SECRET_LAT, SECRET_LON, transit, sunrise, sunset);
+
+//     double utcOffset = (timeinfo.tm_isdst > 0) ? 2.0 : 1.0;
+//     state.env.sunrise_local = sunrise + utcOffset;
+//     state.env.sunset_local = sunset + utcOffset;
+
+//     // Direct de strings vullen in de state
+//     int rH = (int)state.env.sunrise_local;
+//     int rM = (int)((state.env.sunrise_local - rH) * 60);
+//     snprintf(state.env.sunrise_str, sizeof(state.env.sunrise_str), "%02d:%02d", rH, rM);
+
+//     int sH = (int)state.env.sunset_local;
+//     int sM = (int)((state.env.sunset_local - sH) * 60);
+//     snprintf(state.env.sunset_str, sizeof(state.env.sunset_str), "%02d:%02d", sH, sM);
+// }
 
 //      --- HOOFDFUNCTIE VOOR HET BEHEREN VAN DE HELDERHEID OP BASIS VAN ZON-LOGICA EN VEILIGHEIDS-OVERRIDE ---
 void manageBrightness()
 {
     struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) return;
+    if (!getLocalTime(&timeinfo))
+        return;
 
     // 1. DATA VOORBEREIDEN
     int nu = (timeinfo.tm_hour * 60) + timeinfo.tm_min;
@@ -85,22 +142,26 @@ void manageBrightness()
     int target_pwm = nacht; // We gaan uit van nacht als default
 
     // 2. BASIS HELDERHEID BEPALEN (De Zon-logica)
-    if (nu >= (op - fade) && nu < op) {
+    if (nu >= (op - fade) && nu < op)
+    {
         // Zonsopkomst (Fade IN)
         target_pwm = map(nu, op - fade, op, nacht, dag);
         state.env.is_night_mode = false;
-    } 
-    else if (nu >= op && nu < onder) {
+    }
+    else if (nu >= op && nu < onder)
+    {
         // Volle dag
         target_pwm = dag;
         state.env.is_night_mode = false;
-    } 
-    else if (nu >= onder && nu < (onder + fade)) {
+    }
+    else if (nu >= onder && nu < (onder + fade))
+    {
         // Zonsondergang (Fade OUT)
         target_pwm = map(nu, onder, onder + fade, dag, nacht);
-        state.env.is_night_mode = false; 
-    } 
-    else {
+        state.env.is_night_mode = false;
+    }
+    else
+    {
         // Volle nacht
         target_pwm = nacht;
         state.env.is_night_mode = true;
@@ -108,19 +169,21 @@ void manageBrightness()
 
     // 3. THERMISCHE INJECTIE (De Veiligheids-override)
     // Deze komt ná de zon-logica zodat veiligheid altijd wint
-    if (state.env.health == HEALTH_CRITICAL) {
+    if (state.env.health == HEALTH_CRITICAL)
+    {
         target_pwm = min(target_pwm, 15);
-    } 
-    else if (state.env.health == HEALTH_WARNING) {
+    }
+    else if (state.env.health == HEALTH_WARNING)
+    {
         target_pwm = target_pwm / 2;
     }
 
     // 4. HARDWARE AANSTUREN
     // We checken hier slechts één keer of de waarde echt veranderd is
-    if (target_pwm != state.display.backlight_pwm) {
+    if (target_pwm != state.display.backlight_pwm)
+    {
         updateDisplayBrightness(target_pwm);
         Serial.printf("[Brightness] Nieuwe PWM: %d \n", target_pwm);
         Serial.printf("[HEALTH] %d, Temperatuur Behuizing: %.1f°C \n", state.env.health, state.env.case_temp);
     }
 }
-

@@ -104,6 +104,13 @@ void loadWeatherCache()
     state.weather.current_icon = preferences.getInt("last_ico", 800);
     state.weather.description = preferences.getString("last_desc", "--");
     state.weather.last_update_epoch = preferences.getUInt("last_upd", 0);
+
+    state.weather.today.sun_rise = preferences.getUInt("sun_r", 0);
+    state.weather.today.sun_set = preferences.getUInt("sun_s", 0);
+    state.weather.today.moon_rise = preferences.getUInt("moon_r", 0);
+    state.weather.today.moon_set = preferences.getUInt("moon_s", 0);
+    state.weather.today.moon_phase = preferences.getFloat("moon_p", 0.5);
+
     preferences.end();
 }
 
@@ -114,5 +121,12 @@ void saveWeatherCache()
     preferences.putInt("last_ico", state.weather.current_icon);
     preferences.putString("last_desc", state.weather.description);
     preferences.putUInt("last_upd", state.weather.last_update_epoch);
+
+    preferences.putUInt("sun_r", (uint32_t)state.weather.today.sun_rise);
+    preferences.putUInt("sun_s", (uint32_t)state.weather.today.sun_set);
+    preferences.putUInt("moon_r", (uint32_t)state.weather.today.moon_rise);
+    preferences.putUInt("moon_s", (uint32_t)state.weather.today.moon_set);
+    preferences.putFloat("moon_p", state.weather.today.moon_phase);
+
     preferences.end();
 }

@@ -20,7 +20,7 @@
 #include <qrcode.h>
 
 extern SystemState state; // Voor toegang tot de centrale 'state' struct
-
+static bool monitorBackgroundDrawn = false;
 
 // --- Helper functies voor het omzetten van data naar tekst of symbolen ---
 String getWindRoos(int graden)
@@ -60,6 +60,9 @@ int getBeaufort(float ms)
 
 void addTickerSegment(String txt, uint16_t col);
 void drawQRCodeOnTFT(const char *data, int x, int y, int scale);
+void drawWeatherIcon(TFT_eSprite &spr, int x, int y, int size, int iconId, bool isDay);
+void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant);
+bool vulGepersonaliseerdFeitje(char *buffer, size_t bufferSize);
 // void drawSetupModeActive();
 void drawWebConfigQRinDataPaneel();
 void evaluateSystemSafety();
@@ -77,6 +80,9 @@ void updateTouchLedFeedback(unsigned long duration);
 void showNetworkInfo();
 void showSetupInstructionPanel();
 void setupDisplay();
+
+void finalizeUIAfterSetup();
+void powerDownWiFi();
 
 // Voeg dit toe onderaan je helpers.cpp als tijdelijke fix:
 uint16_t getIconColor(int conditionCode)
@@ -112,9 +118,9 @@ int berekenMinutenTotUpdate()
 //          --- DISPLAY SETUP FUNCTIE ---
 void setupDisplay()
 {
-    // 1. Hardware onderdrukking (Dark Boot)
-    pinMode(Config::pin_backlight, OUTPUT);
-    digitalWrite(Config::pin_backlight, LOW);
+    // // 1. Hardware onderdrukking (Dark Boot)
+    // pinMode(Config::pin_backlight, OUTPUT);
+    // digitalWrite(Config::pin_backlight, LOW);
 
     // 2. Initialiseer TFT
     tft.init();
@@ -124,7 +130,11 @@ void setupDisplay()
     tft.setRotation(1);
 #endif
 
-    tft.fillScreen(TFT_BLACK);
+    // 3. Zet de Buck nu AAN
+    digitalWrite(Config::pin_buck_enable, LOW);
+    
+    // 4. ONMIDDELLIJK zwart schrijven (vóór de controller zijn eigen witte beeld vult)
+    tft.fillScreen(TFT_BLACK); 
 
     // 3. Haal de actuele schermmaten op (na rotatie!)
     int sw = tft.width();  // Geeft 320 op je huidige scherm
@@ -161,6 +171,14 @@ void finalizeSetupAndShowDashboard()
 
     manageTimeFunctions();
     int targetBrightness = (state.env.is_night_mode) ? state.display.night_brightness : state.display.day_brightness;
+
+    // VOORWAARDE: Als we in setup of beheer zitten, doen we NIETS met sprites
+    if (state.network.is_setup_mode || state.network.web_server_active)
+    {
+        // Alleen de helderheid regelen (zodat we de QR kunnen zien)
+        updateDisplayBrightness(state.display.day_brightness);
+        return;
+    }
 
     // 2. Wis het TFT-scherm (Dolfijn weg)
     tft.fillScreen(TFT_BLACK);
@@ -336,44 +354,101 @@ void updateDataPaneelVandaag()
         return;
 
     int tlX_center = 85, tlY = 118;
-    float pixelsPerUur = 15.0; // Eventueel SECRET_HORIZON_PIXELS_PER_HOUR uit config
+    float pixelsPerUur = Config::distance_per_hour; // Eventueel SECRET_HORIZON_PIXELS_PER_HOUR uit config
+    uint16_t shadowCol = state.env.is_night_mode ? 0x2104 : TFT_DARKGREY;
+    float phase = state.weather.today.moon_phase;
+    float r = 5;
 
     float nuDecimal = timeinfo.tm_hour + (timeinfo.tm_min / 60.0);
-    float distOp = (float)state.env.sunrise_local - nuDecimal;
-    float distOnder = (float)state.env.sunset_local - nuDecimal;
+    float distZonOp = state.env.sunrise_local - nuDecimal;
+    float distZonOnder = state.env.sunset_local - nuDecimal;
+    float distMaanOp = state.env.moonrise_local - nuDecimal;
+    float distMaanOnder = state.env.moonset_local - nuDecimal;
+
+    // Correctie voor de datumgrens (als de maan morgenochtend pas ondergaat)
+    if (distMaanOnder < -12.0)
+        distMaanOnder += 24.0;
+    if (distMaanOp < -12.0)
+        distMaanOp += 24.0;
 
     datSpr.drawFastHLine(5, tlY + 1, 170, state.env.is_night_mode ? 0x2104 : TFT_DARKGREY);
 
-    int xOp = tlX_center + (int)(distOp * pixelsPerUur);
-    int xOnder = tlX_center + (int)(distOnder * pixelsPerUur);
+    int xZonOp = tlX_center + (int)(distZonOp * pixelsPerUur);
+    int xZonOnder = tlX_center + (int)(distZonOnder * pixelsPerUur);
+    int xMaanOp = tlX_center + (int)(distMaanOp * pixelsPerUur);
+    int xMaanOnder = tlX_center + (int)(distMaanOnder * pixelsPerUur);
 
-    if (xOp > 0 && xOp < 170)
+    // Serial.printf("[HORIZON] Nu: %.2f | Zon op: %.2f (x=%d) | Zon onder: %.2f (x=%d) | Maan op: %.2f (x=%d) | Maan onder: %.2f (x=%d)\n",
+    //               nuDecimal, state.env.sunrise_local, xZonOp, state.env.sunset_local, xZonOnder,
+    //               state.env.moonrise_local, xMaanOp, state.env.moonset_local, xMaanOnder);
+
+    // Maan op en onder tekenen als ze binnen het zichtbare bereik vallen (0-170 pixels)
+    // Hulpvariabele voor de schaduwkleur (matcht met je horizonlijn)
+
+    if (xMaanOp > 0 && xMaanOp < 170)
     {
-        datSpr.fillCircle(xOp, tlY + 1, 4, TFT_YELLOW);
-        datSpr.setTextDatum(BC_DATUM);
-        datSpr.setTextFont(1);
-        if (xOp > 95)
+        // 1. De basis (volledige maan in goud/wit)
+        datSpr.fillCircle(xMaanOp, tlY + 1, r, 0xDEFB);
+
+        // 2. De schaduw (vormt de fase)
+        if (phase < 0.5)
         {
-            datSpr.drawString(String(state.env.sunrise_str), xOp, tlY - 5);
+            // Wassend: schaduw schuift van rechts naar links
+            int offset = map(phase * 1000, 0, 500, r * 2, 0);
+            datSpr.fillCircle(xMaanOp + offset, tlY + 1, r, shadowCol);
+        }
+        else
+        {
+            // Afnemend: schaduw schuift van links naar rechts
+            int offset = map(phase * 1000, 500, 1000, 0, r * 2);
+            datSpr.fillCircle(xMaanOp - offset, tlY + 1, r, shadowCol);
         }
     }
-    if (xOnder > 0 && xOnder < 170)
+    if (xMaanOnder > 85 && xMaanOnder < 170)
     {
-        datSpr.fillCircle(xOnder, tlY + 1, 4, TFT_ORANGE);
-        datSpr.setTextDatum(BC_DATUM);
-        datSpr.setTextFont(1);
-        if (xOnder > 95)
+        // datSpr.fillCircle(xMaanOnder, tlY + 1, 4, TFT_CYAN);
+        // 1. De basis (volledige maan in goud/wit)
+        datSpr.fillCircle(xMaanOnder, tlY + 1, r, 0xDEFB);
+
+        // 2. De schaduw (vormt de fase)
+        if (phase < 0.5)
         {
-            datSpr.drawString(String(state.env.sunset_str), xOnder, tlY - 5);
+            // Wassend: schaduw schuift van rechts naar links
+            int offset = map(phase * 1000, 0, 500, r * 2, 0);
+            datSpr.fillCircle(xMaanOnder + offset, tlY + 1, r - 1, shadowCol);
+        }
+        else
+        {
+            // Afnemend: schaduw schuift van links naar rechts
+            int offset = map(phase * 1000, 500, 1000, 0, r * 2);
+            datSpr.fillCircle(xMaanOnder - offset, tlY + 1, r - 1, shadowCol);
         }
     }
 
-    float moonPos = (nuDecimal < 12) ? nuDecimal + 12 : nuDecimal - 12;
-    float distMaan = moonPos - nuDecimal;
-    int xMaan = tlX_center + (int)(distMaan * pixelsPerUur);
+    // Zon op en onder tekenen als ze binnen het zichtbare bereik vallen (0-170 pixels)
+    // als laatste tekenen om overlapping van de maanschaduw te voorkomen.
+    if (xZonOp > 0 && xZonOp < 170)
+    {
+        datSpr.fillCircle(xZonOp, tlY + 1, r + 1, TFT_WHITE); // De witte 'gloed' rand
+        datSpr.fillCircle(xZonOp, tlY + 1, r, TFT_YELLOW);    // De gele kern
+        datSpr.setTextDatum(BC_DATUM);
+        datSpr.setTextFont(1);
+        if (xZonOp > 95)
+        {
+            datSpr.drawString(String(state.env.sunrise_str), xZonOp, tlY - 5);
+        }
+    }
+    if (xZonOnder > 85 && xZonOnder < 170)
+    {
+        datSpr.fillCircle(xZonOnder, tlY + 1, r, TFT_ORANGE);
+        datSpr.setTextDatum(BC_DATUM);
+        datSpr.setTextFont(1);
+        if (xZonOnder > 95)
+        {
+            datSpr.drawString(String(state.env.sunset_str), xZonOnder, tlY - 5);
+        }
+    }
 
-    if (xMaan > 0 && xMaan < 170)
-        drawMoonPhase(xMaan, tlY - 10, 5);
     datSpr.fillTriangle(tlX_center, tlY - 2, tlX_center - 4, tlY - 8, tlX_center + 4, tlY - 8, TFT_WHITE);
 }
 
@@ -480,54 +555,9 @@ void showNetworkInfo()
     tft.drawString("mDNS: " + state.network.mdns, 140, 60);
     tft.setTextColor(TFT_WHITE);
     tft.drawString("IP: " + WiFi.localIP().toString(), 140, 80);
-
 }
-
-
 
 // ---   TEKENFUNCTIES ---
-void drawMoonPhase(int x, int y, int radius)
-{
-    static float filteredPhase = 0.5;
-    static long lastMoonCheck = 0;
-
-    // De maan beweegt traag, dus 1x per uur updaten is ruim voldoende
-    if (millis() - lastMoonCheck > 3600000 || lastMoonCheck == 0)
-    {
-        // Haal de phase op uit de forecast van vandaag (index 0)
-        filteredPhase = state.weather.forecast[0].moon_phase;
-        lastMoonCheck = millis();
-    }
-
-    datSpr.setTextFont(1);
-    datSpr.setTextColor(TFT_WHITE);
-    datSpr.setTextDatum(TL_DATUM);
-
-    // De zon-tijden komen nu uit state.env (onze char-arrays)
-    datSpr.drawString(state.env.sunrise_str, 24, y - 3);
-
-    datSpr.setTextDatum(TR_DATUM);
-    datSpr.drawString(state.env.sunset_str, x - 14, y - 3);
-
-    // Teken de basis van de maan
-    datSpr.fillCircle(10, y, radius, 0xFFDA); // Warm goud/wit
-    datSpr.fillCircle(x, y, radius, 0xFFDA);
-
-    // De schaduw-logica (vereenvoudigd voor stabiliteit)
-    float offset;
-    if (filteredPhase <= 0.5)
-    {
-        // Wassende maan
-        offset = map(filteredPhase * 1000, 0, 500, radius * 2, 0);
-        datSpr.fillCircle(x - offset, y, radius + 1, TFT_BLACK);
-    }
-    else
-    {
-        // Afnemende maan
-        offset = map(filteredPhase * 1000, 500, 1000, 0, radius * 2);
-        datSpr.fillCircle(x + offset, y, radius + 1, TFT_BLACK);
-    }
-}
 
 void drawWifiIndicator(int x, int y, int h)
 {
@@ -700,6 +730,7 @@ void handleTouchLadder()
     static bool isTouching = false;
     static unsigned long lastLog = 0;
     static bool monitorBackgroundDrawn = false;
+    static int lastStatus = -1; // Voor het forceren van een update bij statusverandering
 
     // --- 1. AANRAKING DETECTIE ---
     if (touchVal < 55)
@@ -715,13 +746,13 @@ void handleTouchLadder()
         state.display.touch_indicator_color = TFT_BLACK; // Reset de indicatorkleur bij elke update, zodat we alleen feedback zien als we daadwerkelijk aan het drukken zijn
         unsigned long duration = millis() - touchStart;
 
-        // DEBUG (alleen als we drukken)
-        if (millis() - lastLog > 500)
-        {
-            Serial.printf("[DEBUG-TOUCH] Val: %d | Dur: %lu ms | Server: %s\n",
-                          touchVal, duration, state.network.web_server_active ? "AAN" : "UIT");
-            lastLog = millis();
-        }
+        // // DEBUG (alleen als we drukken)
+        // if (millis() - lastLog > 500)
+        // {
+        //     Serial.printf("[DEBUG-TOUCH] Val: %d | Dur: %lu ms | Server: %s\n",
+        //                   touchVal, duration, state.network.web_server_active ? "AAN" : "UIT");
+        //     lastLog = millis();
+        // }
 
         // FEEDBACK (Alleen LED, GEEN acties!)
         updateTouchLedFeedback(duration);
@@ -737,21 +768,27 @@ void handleTouchLadder()
             // Als de server aan staat (Setup of Beheer), sluiten we nu ALTIJD alles af
             if (state.network.web_server_active || state.network.is_setup_mode)
             {
-                deactivateWiFiAndServer();
+                // deactivateWiFiAndServer();
+                powerDownWiFi();
+                finalizeUIAfterSetup();
+                state.network.is_setup_mode = false;
             }
             else if (state.display.show_system_monitor)
             {
                 // Als we in de systeemmonitor zitten, sluiten we die netjes af
                 state.display.show_system_monitor = false;
-                tft.fillScreen(TFT_BLACK);
+                monitorBackgroundDrawn = false;
+                // tft.fillScreen(TFT_BLACK);
             }
             else
             {
                 // Normale werking: toggle alert display
+                lastStatus = -1; // Forceren van een update in de volgende loop, zodat we direct visuele feedback krijgen van de verandering
                 state.display.force_alert_display = !state.display.force_alert_display;
-                state.display.alert_show_until = state.display.force_alert_display ? millis() + 600000UL : 0;
+                state.display.alert_show_until = state.display.force_alert_display ? millis() + Config::ten_min_timeout : 0;
             }
             state.display.force_ticker_refresh = true;
+            Config::forceFirstWeatherUpdate = false;
         }
 
         // 2. ZONE: 5 - 8 SEC (De Generaal: WebConfig)
@@ -769,17 +806,19 @@ void handleTouchLadder()
         else if (eindDuur >= 8000 && eindDuur < 11000)
         {
             state.display.show_system_monitor = !state.display.show_system_monitor;
+            // lastStatus = -1; // Forceren van een update in de volgende loop, zodat we direct visuele feedback krijgen van de verandering
 
             if (state.display.show_system_monitor)
             {
-                monitorBackgroundDrawn = true; // We gaan naar de systeemmonitor, dus we moeten het achtergrondscherm tekenen
-                tft.fillScreen(TFT_BLACK); // Scherm schoonvegen voor het dashboard
+                tft.fillScreen(TFT_BLACK);      // Scherm schoonvegen voor het dashboard
+                monitorBackgroundDrawn = false; // We gaan naar de systeemmonitor, dus we moeten het achtergrondscherm tekenen
             }
             else
             {
-                monitorBackgroundDrawn = false; // We verlaten de systeemmonitor, dus we moeten het achtergrondscherm opnieuw tekenen
-                tft.fillScreen(TFT_BLACK);
-                state.display.force_ticker_refresh = true; // Netjes terugkeren
+
+                // tft.fillScreen(TFT_BLACK);
+                // monitorBackgroundDrawn = false; // We verlaten de systeemmonitor, dus we moeten het achtergrondscherm opnieuw tekenen
+                state.display.force_ticker_refresh = false; // Netjes terugkeren
             }
         }
 
@@ -789,6 +828,7 @@ void handleTouchLadder()
         touchStart = 0;
         state.env.is_touching = false;
         state.display.touch_indicator_color = TFT_BLACK;
+        monitorBackgroundDrawn = false;
 
         // Update direct het datapaneel voor visuele feedback
         // Update alleen de panelen als we NIET in een speciale modus zitten
@@ -925,4 +965,20 @@ void evaluateSystemSafety()
     { // Hysteresis van 5 graden voor rustig beeld
         state.env.health = HEALTH_OK;
     }
+}
+
+void finalizeUIAfterSetup()
+{
+    tft.fillScreen(TFT_BLACK);
+    state.display.force_ticker_refresh = true;
+
+    // LED feedback alleen hier!
+    for (int i = 0; i < 3; i++)
+    {
+        digitalWrite(Config::pin_fingerprint_led, HIGH);
+        delay(100);
+        digitalWrite(Config::pin_fingerprint_led, LOW);
+        delay(100);
+    }
+    Serial.println(F("[UI] Scherm hersteld na beheer-modus."));
 }

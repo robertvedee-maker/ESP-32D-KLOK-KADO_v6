@@ -33,7 +33,7 @@
 
 // 2. De functies die in de loop() en setup() worden aangeroepen, zodat we een centrale plek hebben voor alle 'acties' die de app kan uitvoeren.
 #include <Arduino.h>
-#include <ArduinoOTA.h>
+// #include <ArduinoOTA.h>
 #include <Preferences.h>
 #include <time.h>
 #include <WiFi.h>

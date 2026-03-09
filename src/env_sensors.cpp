@@ -19,16 +19,8 @@ Adafruit_BMP280 bmp;
 OneWire oneWire(Config::pin_OneWire); // GPIO32 voor DS18B20
 DallasTemperature sensors(&oneWire);
 
-// // Lokale buffer voor het hoogte-filter (10 metingen)
-static float hoogte_buffer[10];
-static int buffer_idx = 0;
-static bool buffer_vol = false;
 
-// Status flags om crashes te voorkomen
-static bool aht_ok = false;
-static bool bmp_ok = false;
-static bool ds18b20_ok = false;
-
+// --- Sensor Setup en Handling ---
 bool setupSensors()
 {
     // 1. Start I2C op de juiste pinnen
@@ -41,19 +33,19 @@ bool setupSensors()
     // 2. AHT20 Initialisatie
     if (aht.begin())
     {
-        aht_ok = true;
+        state.env.aht_ok = true;
         Serial.println(F("[SENSOR] AHT20 OK"));
     }
     else
     {
-        aht_ok = false;
+        state.env.aht_ok = false;
         Serial.println(F("[SENSOR] AHT20 niet gevonden!"));
     }
 
     // 3. BMP280 Initialisatie (check beide adressen)
     if (bmp.begin(0x76) || bmp.begin(0x77))
     {
-        bmp_ok = true;
+        state.env.bmp_ok = true;
         Serial.println(F("[SENSOR] BMP280 OK"));
 
         // Optioneel: BMP instellingen voor betere stabiliteit
@@ -65,7 +57,7 @@ bool setupSensors()
     }
     else
     {
-        bmp_ok = false;
+        state.env.bmp_ok = false;
         Serial.println(F("[SENSOR] BMP280 niet gevonden!"));
     }
 
@@ -75,22 +67,23 @@ bool setupSensors()
     {
         sensors.setWaitForConversion(false); // CRUCIAAL: Dit zet de asynchrone modus aan
         sensors.requestTemperatures();       // Geef alvast de allereerste opdracht
-        ds18b20_ok = true;
+        state.env.ds18b20_ok = true;
         Serial.println(F("[SENSOR] DS18B20 OK"));
     }
     else
     {
-        ds18b20_ok = false;
+        state.env.ds18b20_ok = false;
         Serial.println(F("[SENSOR] DS18B20 niet gevonden!"));
     }
 
-    return (aht_ok || bmp_ok || ds18b20_ok); // True als er tenminste één sensor werkt
+    return (state.env.aht_ok || state.env.bmp_ok || state.env.ds18b20_ok); // True als er tenminste één sensor werkt
 }
 
+// --- Sensor Data Handling (elke 10 sec) ---
 void handleSensors()
 {
    // 0. DS18B20: Interne Behuizing Temperatuur (Asynchroon)
-    if (ds18b20_ok)
+    if (state.env.ds18b20_ok)
     {
         // Haal de waarde op die de VORIGE ronde (10 sec geleden) is aangevraagd
         float current_case_temp = sensors.getTempCByIndex(0);
@@ -108,18 +101,18 @@ void handleSensors()
 
 
     // 1. AHT20: Temperatuur en Luchtvochtigheid
-    if (aht_ok)
+    if (state.env.aht_ok)
     {
         sensors_event_t humidity, temp;
         if (aht.getEvent(&humidity, &temp))
         {
-            state.env.temp_local = temp.temperature;
+            state.env.raw_temp_local = temp.temperature;
             state.env.hum_local = humidity.relative_humidity;
         }
     }
 
-    if (aht_ok && ds18b20_ok) {
-        // We hebben vastgesteld: AHT is 4 graden te hoog t.o.v. de buitenwereld
+    if (state.env.aht_ok && state.env.ds18b20_ok) {
+        // We hebben vastgesteld: AHT is 5 graden te hoog t.o.v. de buitenwereld
         // als de case_temp rond de 30 graden zit.
         
         float offset = 5.0; 
@@ -128,86 +121,19 @@ void handleSensors()
         // Als de behuizing op kamertemperatuur is (bijv. na koude start), corrigeren we niets.
         // Naarmate de behuizing opwarmt, passen we de volledige offset toe.
         
-        float opwarmFactor = (state.env.case_temp - 22.0) / 8.0; 
-        opwarmFactor = constrain(opwarmFactor, 0.0, 1.0); // Blijf tussen 0 en 1
+        float opwarmFactor = (state.env.case_temp - 20.0) / 8.0; 
+        opwarmFactor = constrain(opwarmFactor, 0.0, 2.0); // Blijf tussen 0 en 2
         
-        state.env.temp_local = state.env.temp_local - (offset * opwarmFactor);
+        state.env.temp_local = state.env.raw_temp_local - (offset * opwarmFactor);
+        // Serial.printf("[SENSOR] AHT20 Temperatuur gecorrigeerd met %.2f graden (Factor: %.2f)\n", offset * opwarmFactor, opwarmFactor);
     }
 
     // 2. BMP280: Druk en Hoogte
-    if (bmp_ok)
+    if (state.env.bmp_ok)
     {
-        // FORCEER één meting
-        bmp.takeForcedMeasurement();
-
-        // Haal de waarden op (deze gebruiken nu de data van de forced measurement)
-        float raw_pressure = bmp.readPressure() / 100.0F;
-        state.env.press_local = raw_pressure;
-
         // // 1. Directe meting voor clock display
-        // state.env.press_local = bmp.readPressure() / 100.0F; // hPa
-
-        // // Bereken hoogte (gebruik 1013.25 als referentie)
-        // float current_alt = bmp.readAltitude(1013.25);
-        // state.env.altitude_local = current_alt;
-
-        // // Update de string die de Ticker gebruikt (zonder decimalen + "m")
-        // state.weather.height_str = String((int)(current_alt + 0.5)) + "m";
-
-        // // 1. Statics voor stabiliteit
-        // static float laatste_valide_raw = 0;
-        // static int getoonde_int_hoogte = -999;
-        // // static unsigned long start_tijd = millis();
-        // // bool opgewarmd = (millis() - start_tijd > 45000); // 45 sec opwarmtijd
-
-        // // 2. Ruwe meting
-        // float ref_druk = (state.weather.pressure > 800) ? state.weather.pressure : 1013.25;
-        // float rauwe_hoogte = bmp.readAltitude(ref_druk);
-
-        // // 3. Delta-check (Glitch filter)
-        // float delta = abs(rauwe_hoogte - laatste_valide_raw);
-        // if (/*opgewarmd &&*/ laatste_valide_raw != 0 && delta > 80.0)
-        // {
-        //     // Sprong van > 80m in 1 sec negeren we (Glitch)
-        //     return;
-        // }
-        // laatste_valide_raw = rauwe_hoogte;
-
-        // // 4. Moving Average Buffer
-        // hoogte_buffer[buffer_idx] = rauwe_hoogte;
-        // buffer_idx = (buffer_idx + 1) % 10;
-        // if (buffer_idx == 0)
-        //     buffer_vol = true;
-
-        // float som = 0;
-        // int aantal = buffer_vol ? 10 : buffer_idx;
-        // for (int i = 0; i < aantal; i++)
-        //     som += hoogte_buffer[i];
-        // state.weather.stable_height = som / aantal;
-
-        // // 5. DEAD_BAND Logica voor de Ticker
-        // int afgeronde_hoogte = (int)(state.weather.stable_height + 0.5);
-
-        // // Update de string alleen als:
-        // // - We zijn opgewarmd EN de buffer vol is
-        // // - EN de wijziging >= 2 meter is (Deadband)
-        // if (/*opgewarmd &&*/ buffer_vol)
-        // {
-        //     if (abs(afgeronde_hoogte - getoonde_int_hoogte) >= 2 || getoonde_int_hoogte == -999)
-        //     {
-        //         getoonde_int_hoogte = afgeronde_hoogte;
-
-        //         // Zet in de state voor de Ticker
-        //         state.weather.height_str = String(getoonde_int_hoogte);
-        //     }
-        // }
-        // else
-        // {
-        //     // Tijdens opwarmen houden we de Ticker-check op "0"
-        //     state.weather.height_str = "0";
-        // }
+        state.env.press_local = bmp.readPressure() / 100.0F; // hPa
     }
-    // Serial.printf("[SENSOR] Temp: %.1f C, Hum: %.1f %%, Press: %.1f hPa, Alt: %.1f m\n",
-    //               state.env.temp_local, state.env.hum_local, state.env.press_local, state.env.altitude_local);
+
 }
 

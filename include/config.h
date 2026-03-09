@@ -1,6 +1,12 @@
 /*
  * (c)2026 R van Dorland - Licensed under MIT License
  * General configuration settings
+ * 
+ *  --- !!! 
+ * Waar in het script SECRET_xxx staat komt de informatie uit secret.h, 
+ * zodat die makkelijk te vinden is en niet per ongeluk in de code terechtkomt. 
+ * Zorg ervoor dat je secret.h niet deelt of publiceert, want daar staan je WiFi-gegevens en API keys in! 
+ *  --- !!!
  */
 
 #pragma once
@@ -55,6 +61,8 @@ namespace Config
     constexpr int solar_fade_minutes = 30;          // min
     constexpr int default_transition_speed = 12;    // ms
     constexpr int default_transition_type = 1;      // 0 = slide left, 1 = slide right, 2 = slide up, 3 = slide down, 4 = none
+    constexpr int distance_per_hour = 10;             // pixels per uur voor de zon- en maanbaan in het data-paneel (gebaseerd op 15 pixels per uur bij een 10 uur horizon)
+    constexpr long ten_min_timeout = 10 * 60 * 1000UL; // ms dat de setup-modus actief blijft zonder verbinding voordat hij automatisch afsluit
 
     // --- 5. OVERIGE INSTELLINGEN ---
     constexpr uint16_t bg_color_day = TFT_DARKGREY;
@@ -66,9 +74,9 @@ namespace Config
 
     constexpr int alert_timeout = 2 * 60 * 1000; // ms dat een Alert actief blijft in de ticker voordat hij automatisch terugkeert naar de normale status
 
-    constexpr long system_temp_threshold = 72;  // °C waarbij we de buck converter uitschakelen om schade te voorkomen
-    constexpr long system_temp_warning = 60;    // °C waarbij we een waarschuwing geven (dmv het ISOAlarm icoon en de backlight dimmen)
-    constexpr long system_temp_hysteresis = 55; // °C waarbij we de buck converter weer inschakelen nadat deze is uitgeschakeld vanwege oververhitting
+    constexpr float system_temp_threshold = 72;  // °C waarbij we de buck converter uitschakelen om schade te voorkomen
+    constexpr float system_temp_warning = 60;    // °C waarbij we een waarschuwing geven (dmv het ISOAlarm icoon en de backlight dimmen)
+    constexpr float system_temp_hysteresis = 55; // °C waarbij we de buck converter weer inschakelen nadat deze is uitgeschakeld vanwege oververhitting
 
     // OpenWeatherMap 3.0 OneCall API
     // Gebruik: Config::owm_url + state.env.lat + "&lon=" + state.env.lon + "&appid=" + SECRET_OWM_KEY

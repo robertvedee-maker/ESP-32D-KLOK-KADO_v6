@@ -16,7 +16,7 @@
 #include "storage_logic.h" // Voor NVS opslag
 #include "weather_logic.h" // Voor OWM data
 #include <Arduino.h>
-#include <ArduinoOTA.h>
+// #include <ArduinoOTA.h>
 #include <Preferences.h>
 #include <time.h>
 #include <WiFi.h>
@@ -33,6 +33,8 @@ void renderTicker();
 void setup();
 void showSetupInstructionPanel();
 void drawSystemMonitor();
+
+static uint32_t lastLoggedStartTime = 0;
 
 unsigned long lastWeatherUpdate = 0;
 unsigned long lastSensorUpdate = 0;
@@ -51,14 +53,19 @@ void setup()
     // nvs_flash_erase();
     // nvs_flash_init();
 
+    // 1. Hou alles even STROOMLOOS (Buck uit)
+    pinMode(Config::pin_buck_enable, OUTPUT);
+    digitalWrite(Config::pin_buck_enable, HIGH); 
+    delay(100); // Korte rust voor de condensatoren
+
     pinMode(Config::pin_fingerprint_led, OUTPUT);   // De Systeem-LED achter de vingerprint
     digitalWrite(Config::pin_fingerprint_led, LOW); // Start uit
 
-    pinMode(Config::pin_buck_enable, OUTPUT);   // Buck converter control pin
-    digitalWrite(Config::pin_buck_enable, LOW); // Start met buck converter aan (stroomvoorziening actief)
+    // pinMode(Config::pin_buck_enable, OUTPUT);   // Buck converter control pin
+    // digitalWrite(Config::pin_buck_enable, LOW); // Start met buck converter aan (stroomvoorziening actief)
 
     Serial.begin(115200);
-    delay(500); // 0.5 seconde pauze voor stabilisatie
+    delay(200); // 0.2 seconde pauze voor stabilisatie
 
     Serial.println(F("\n--- Systeem Start ---"));
 
@@ -74,6 +81,13 @@ void setup()
 
     // DISPLAY START
     setupDisplay();
+
+        // 2. Zet de stroom erop (Buck aan)
+    digitalWrite(Config::pin_buck_enable, LOW); 
+    
+    // 3. CRUCIAAL: Wacht tot de sensoren en het scherm 'wakker' zijn
+    // De BMP280 heeft ongeveer 10-50ms nodig, de AHT20 ook.
+    delay(200); // We geven het systeem een kwart seconde om volledig op te starten voordat we verder gaan, voor maximale stabiliteit
 
     // // TIJDELIJKE TEST-STOP
     // drawSetupModeActive();
@@ -134,8 +148,31 @@ void setup()
     // prefs.end();
 }
 
+static unsigned long lastSetupRedraw = 0;
+
 void loop()
 {
+    // manageTimeFunctions();
+    evaluateSystemSafety();
+
+    // Herstart check
+if (state.network.pending_restart /*&& millis() > state.network.restart_at*/) {
+    Serial.println(F("[SYSTEM] Licht uit, herstarten..."));
+    
+    // 1. Maak het scherm zwart (softwarematig)
+    tft.fillScreen(TFT_BLACK);
+    
+    // 2. Trek de stekker uit de Buck (hardwarematig)
+    digitalWrite(Config::pin_buck_enable, HIGH);
+    
+    // 3. Korte pauze om de elco's van de Buck leeg te laten lopen
+    delay(100); 
+    
+    // 4. De echte herstart
+    ESP.restart();
+}
+
+
     // 1. TOUCH & LED (Altijd eerst voor maximale responsiviteit)
     static unsigned long lastTouchTick = 0;
     if (millis() - lastTouchTick > 30)
@@ -149,7 +186,7 @@ void loop()
     // We checken of de setup-vlag óf de webserver actief is
     if (state.network.is_setup_mode || state.network.web_server_active)
     {
-        static unsigned long lastSetupRedraw = 0;
+        // static unsigned long lastSetupRedraw = 0;
 
         // Ververs het scherm 1x per seconde voor de aftelbalk en status
         if (millis() - lastSetupRedraw > 1000)
@@ -162,34 +199,43 @@ void loop()
         manageServerTimeout();
 
         yield();
+        if (state.network.server_start_time != lastLoggedStartTime)
+        {
+            Serial.printf("[SYSTEM] server start time set to: %lu\n", state.network.server_start_time);
+            lastLoggedStartTime = state.network.server_start_time;
+        }
         return; // Stop de rest van de loop om Heap te sparen voor de Webserver
     }
 
-    // 3. NORMALE KLOK-OPERATIE (Alleen als setup NIET actief is)
-
-    // Herstart check
-    if (state.network.pending_restart && millis() > state.network.restart_at)
+    // --- 3. SYSTEM MONITOR MODUS (Blokkerend) ---
+    if (state.display.show_system_monitor)
     {
-        ESP.restart();
+        static unsigned long lastMonitorUpdate = 0;
+        if (millis() - lastMonitorUpdate > 500)
+        {
+            drawSystemMonitor();
+            lastMonitorUpdate = millis();
+        }
+        yield();
+        return; // Sla het dashboard over als de monitor aan staat
     }
 
-
+    // 3. NORMALE KLOK-OPERATIE (Alleen als setup NIET actief is)
 
     // Achtergrond taken (elke 10 sec)
     static unsigned long lastTenSecondTick = 0;
     if (millis() - lastTenSecondTick > 10000)
     {
         handleSensors();
+        handleWiFiEco();
         manageBrightness();
         manageTimeFunctions();
-        evaluateSystemSafety();
+        manageEasterEggTimer();
         lastTenSecondTick = millis();
     }
 
     // --- BLOK 6: VISUEEL (TICKER & ANIMATIE) ---
     // Alleen uitvoeren als we NIET in setup of beheer-modus zitten
-    if (!state.network.is_setup_mode && !state.network.web_server_active && !state.display.show_system_monitor)
-    {
     // Klok update (elke sec)
     static time_t last_now = 0;
     time_t now = time(nullptr);
@@ -199,25 +245,9 @@ void loop()
         updateClock();
     }
 
-        renderTicker();
-        manageDataPanels();
-        manageWeatherUpdates();
-    }
-    else if (state.display.show_system_monitor)
-    {
-        static unsigned long lastMonitorUpdate = 0;
-        if (millis() - lastMonitorUpdate > 500)
-        { // Ververs elke halve seconde
-            drawSystemMonitor();
-            lastMonitorUpdate = millis();
-        }
-    }
-    else
-    {
-        // Optioneel: als je toch iets op de achtergrond wilt laten draaien
-        // (bijvoorbeeld alleen de klok-tijd intern bijhouden), kan dat hier.
-        yield();
-    }
+    renderTicker();
+    manageDataPanels();
+    manageWeatherUpdates();
 }
 
 // void loop()

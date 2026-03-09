@@ -16,7 +16,7 @@ enum TickerMode
     MODE_CONFIG, // Speciaal voor configuratie (zoals QR-code)
     MODE_NORMAL, // Reguliere weersinformatie
     MODE_ALERT,  // Geforceerd weeralarm (10 min of OWM alert)
-    MODE_WAITING // Optioneel: Specifieke status voor 'wachten op slot'
+    // MODE_WAITING // Optioneel: Specifieke status voor 'wachten op slot'
 };
 
 // --- TYPES & ENUMS ---
@@ -72,6 +72,8 @@ struct WeatherData
         float temp_eve;
         float temp_morn;
         float moon_phase;
+        uint32_t sun_rise;
+        uint32_t sun_set;
         uint32_t moon_rise;
         uint32_t moon_set;
     } today;
@@ -85,6 +87,12 @@ struct WeatherData
 
 struct EnvData
 {
+    // AHT20 BPM280 DS18B20 Status
+    bool aht_ok = false;
+    bool bmp_ok = false;
+    bool ds18b20_ok = false;
+
+    // Gezondheidsscore en gerelateerde kleuren/statussen
     bool is_night_mode = false;
     bool is_alert_active = false;
     uint16_t ticker_color = TFT_LIGHTGREY;         // Neutraal: Lichtgrijs
@@ -99,13 +107,15 @@ struct EnvData
             return 0xFDE0; // Geel/Oranje
         return is_alert_active ? alert_active_color : icon_base_color;
     }
-    double sunrise_local = 0.0, sunset_local = 0.0;
+    double sunrise_local = 0.0, sunset_local = 0.0, moonrise_local = 0.0, moonset_local = 0.0;
     char sunrise_str[6] = "00:00", sunset_str[6] = "00:00";
     char current_time_str[10] = "00:00:00", current_date_str[12] = "01-01-2024";
+    float raw_temp_local = 0.0; // De ruwe temperatuur van de AHT20, voor interne checks
     float temp_local = 0.0;
     float hum_local = 0.0;
     float press_local = 0.0;
-    float altitude_local = 0.0;
+
+    // float altitude_local = 0.0;
     bool aht_online = false, bmp_online = false;
     double lat = 52.3702, lon = 4.8952; // Default: Amsterdam
     bool alert_muted = false;           // Voor mute status van ISO-alerts

@@ -13,6 +13,7 @@
 // #include <WiFiClientSecure.h>
 #include <WiFi.h>
 #include <Preferences.h>
+#include <esp_task_wdt.h>
 
 // forward declarations
 bool fetchWeather(bool checkOnly);
@@ -20,6 +21,9 @@ void manageWeatherUpdates();
 void updateTickerSegments();
 String urlEncode(String str);
 void setupWiFi();
+void disableWiFi();
+// void deactivateWiFiAndServer();
+void powerDownWiFi();
 
 void manageWeatherUpdates()
 {
@@ -40,6 +44,9 @@ void manageWeatherUpdates()
     // We updaten als de vlag TRUE is (koude start) OF als fetchWeather(true) zegt dat het tijd is.
     bool moetNuUpdaten = Config::forceFirstWeatherUpdate || fetchWeather(true);
 
+    if (!state.network.wifi_enabled && state.network.wifi_mode == 2)
+        return; // WiFi is uit, en we zitten in ECO/Nacht modus, dus we respecteren dat en doen niks.
+
     // 4. DE UITVOERING
     if (moetNuUpdaten)
     {
@@ -52,8 +59,9 @@ void manageWeatherUpdates()
             unsigned long startWait = millis();
             while (WiFi.status() != WL_CONNECTED && millis() - startWait < 5000)
             {
-                delay(50);
-                yield();
+                vTaskDelay(pdMS_TO_TICKS(100)); // Wacht netjes in Core 0
+                // delay(50);
+                // yield();
             }
         }
 
@@ -71,6 +79,16 @@ void manageWeatherUpdates()
                 Serial.println(F("[WEATHER-MGMT] Fetch mislukt, probeer over 1 minuut opnieuw."));
             }
         }
+        // On-demand: WiFi weer uit na gebruik
+        if (state.network.wifi_mode == 1 && !state.network.web_server_active)
+        {
+            // disableWiFi();
+            // deactivateWiFiAndServer();
+            powerDownWiFi();
+
+        }
+
+        state.network.is_updating = false;
     }
 }
 
@@ -121,6 +139,8 @@ bool fetchWeather(bool checkOnly)
         return true;
 
     state.network.is_updating = true;
+
+    Serial.println(F("[WEATHER] API call wordt aangesproken!..."));
 
     // 2. HTTP CONNECTIE
     WiFiClient client;
@@ -210,7 +230,6 @@ bool fetchWeather(bool checkOnly)
     }
 
     // --- GEGEVENS VOOR VANDAAG (Dag 0 uit de forecast sectie) ---
-    // --- GEGEVENS VOOR VANDAAG (Dag 0 uit de forecast sectie) ---
     auto today = doc["daily"][0]; // <--- Belangrijk: Index 0 is vandaag!
 
     // En dan de waarden overzetten naar je state:
@@ -220,7 +239,8 @@ bool fetchWeather(bool checkOnly)
     state.weather.today.temp_night = today["temp"]["night"] | 0.0f;
     state.weather.today.temp_eve = today["temp"]["eve"] | 0.0f;
     state.weather.today.temp_morn = today["temp"]["morn"] | 0.0f;
-
+    state.weather.today.sun_rise = today["sunrise"] | 0;
+    state.weather.today.sun_set = today["sunset"] | 0;
     state.weather.today.moon_phase = today["moon_phase"] | 0.0f;
     state.weather.today.moon_rise = today["moonrise"] | 0;
     state.weather.today.moon_set = today["moonset"] | 0;
@@ -235,15 +255,11 @@ bool fetchWeather(bool checkOnly)
         f.temp_max = daily["temp"]["max"] | 0.0f;
         f.icon_id = daily["weather"][0]["id"] | 800;
         strlcpy(f.description, daily["weather"][0]["description"] | "--", sizeof(f.description));
-        // strlcpy(f.summary, daily["weather"][0]["main"] | "--", sizeof(f.summary));
-        // f.moon_phase = daily["moon_phase"] | 0.0f;
-        // f.moon_rise = daily["moonrise"] | 0;
-        // f.moon_set = daily["moonset"] | 0;
     }
 
     // 6. AFHANDELING & OPSLAAN
     state.weather.last_update_epoch = nu;
-    state.weather.data_is_fresh = true; 
+    state.weather.data_is_fresh = true;
     saveWeatherCache();
     updateTickerSegments();
 

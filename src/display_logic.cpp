@@ -29,18 +29,18 @@ TFT_eSprite tckSpr = TFT_eSprite(&tft);
 
 std::vector<TickerSegment> tickerSegments;
 
-void addSegment(const char *text, uint16_t color);
+void addSegment(String t, uint16_t c);
 void makeUpperCase(char *str);
 void manageDataPanels();
 void manageEasterEggTimer();
 void manageServerTimeout();
-void performTransition();
+void performTransition(TFT_eSprite *oldSpr, TFT_eSprite *newSpr);
+void manageStatusLed();
 void renderTicker();
 void updateClock();
 void updateTickerSegments();
 void vulAlertSegmenten();
 void vulBootSegmenten();
-void vulConfigSegmenten();
 void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant = -1);
 bool vulGepersonaliseerdFeitje(char *buffer, size_t bufferSize);
 void vulNormalSegmenten();
@@ -83,19 +83,19 @@ void vulBootSegmenten()
     tickerSegments.push_back(s);
 }
 
-void vulConfigSegmenten()
-{
-    TickerSegment s;
-    s.color = TFT_ORANGE;
+// void vulConfigSegmenten()
+// {
+//     TickerSegment s;
+//     s.color = TFT_ORANGE;
 
-    // Kort en krachtig: geen afleiding
-    snprintf(s.text, sizeof(s.text), " *** CONFIG ACTIEF: %s | QR-CODE: TOUCH 2 SEC *** ",
-             WiFi.localIP().toString().c_str());
+//     // Kort en krachtig: geen afleiding
+//     snprintf(s.text, sizeof(s.text), " *** CONFIG ACTIEF: %s | QR-CODE: TOUCH 2 SEC *** ",
+//              WiFi.localIP().toString().c_str());
 
-    makeUpperCase(s.text);
-    s.width = tckSpr.textWidth(s.text);
-    tickerSegments.push_back(s);
-}
+//     makeUpperCase(s.text);
+//     s.width = tckSpr.textWidth(s.text);
+//     tickerSegments.push_back(s);
+// }
 
 void vulAlertSegmenten()
 {
@@ -189,7 +189,7 @@ void vulNormalSegmenten()
     sZicht.color = state.env.ticker_color;
     float zichtWaarde = (state.weather.visibility >= 1000) ? (state.weather.visibility / 1000.0f) : (float)state.weather.visibility;
     const char *eenheid = (state.weather.visibility >= 1000) ? "km" : "m";
-    snprintf(sZicht.text, sizeof(sZicht.text), "| ZICHT: %.1f %s", zichtWaarde, eenheid);
+    snprintf(sZicht.text, sizeof(sZicht.text), "| ZICHT: %.0f %s", zichtWaarde, eenheid);
     sZicht.width = tckSpr.textWidth(sZicht.text);
     tickerSegments.push_back(sZicht);
 
@@ -226,17 +226,6 @@ void vulNormalSegmenten()
             Serial.println(F("[TICKER] Paasei toegevoegd aan de Segmenten."));
         }
     }
-
-    // // Segment: Wachttijd tot volgende update
-    // int minResterend = berekenMinutenTotUpdate();
-    // if (minResterend > 0)
-    // {
-    //     TickerSegment sWait;
-    //     sWait.color = TFT_CYAN;
-    //     snprintf(sWait.text, sizeof(sWait.text), " | UPDATE OVER %d MIN", minResterend);
-    //     sWait.width = tckSpr.textWidth(sWait.text);
-    //     tickerSegments.push_back(sWait);
-    // }
 
     // Afsluiter
     TickerSegment sEnd;
@@ -301,6 +290,7 @@ void updateTickerSegments()
         oudeMode = nieuweMode;
         state.display.force_ticker_refresh = false;
         Serial.printf("[TICKER] Wissel naar Mode: %d\n", nieuweMode);
+
     }
 
     // 4. DE SCHOONMAAK (Cruciaal: Eerst alles leegmaken!)
@@ -312,9 +302,9 @@ void updateTickerSegments()
     case MODE_BOOT:
         vulBootSegmenten();
         break;
-    case MODE_CONFIG:
-        vulConfigSegmenten();
-        break;
+    // case MODE_CONFIG:
+    //     vulConfigSegmenten();
+    //     break;
     case MODE_ALERT:
         vulAlertSegmenten();
         break;
@@ -346,7 +336,7 @@ void manageEasterEggTimer()
     // 1. KIEZEN VAN EEN NIEUW MOMENT
     if (state.env.next_easter_egg_minute == -1)
     {
-        int interval = random(5, 56);
+        int interval = random(15, 120); // Willekeurig interval tussen 15 en 120 minuten
         state.env.next_easter_egg_minute = (huidigeMinuutInDag + interval) % 1440;
         Serial.printf(F("[PAASEI] Volgende over % d min (omstreeks minuut % d)\n"),
                       interval, state.env.next_easter_egg_minute);
