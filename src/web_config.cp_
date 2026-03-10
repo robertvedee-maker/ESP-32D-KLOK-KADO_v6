@@ -82,7 +82,7 @@ void initWebServer()
 {
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
     {
-        Serial.println(F("[WEB] Home pagina serveren via processor..."));
+        Serial.print("[WEB] Home pagina serveren via processor...\n");
 
         String html = String(INDEX_HTML);
         

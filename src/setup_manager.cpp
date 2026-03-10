@@ -16,11 +16,12 @@
 
 extern AsyncWebServer server;
 extern void drawQRCodeOnTFT(const char *data, int x, int y, int scale);
-void drawSetupScreen();
+// void drawSetupScreen();
 void drawSetupModeActive();
+void drawSystemMonitor();
 void haltSystemWithInstruction();
-// void startSetupMode();
-// void runSetupCycle();
+void showNetworkInfo();
+void showSetupInstructionPanel();
 void startAccessPoint();
 extern void updateDateTimeStrings();
 
@@ -28,7 +29,6 @@ extern void updateDateTimeStrings();
 static unsigned long lastRedraw = 0;
 const unsigned long REDRAW_INTERVAL = 1000; // 1 FPS is genoeg voor setup
 
-static bool monitorBackgroundDrawn = false;
 // 1. STATUS BIJHOUDEN (De 'Grendel')
 // We gebruiken -1 als startwaarde zodat hij de eerste keer altijd tekent
 static int lastStatus = -1;
@@ -57,7 +57,7 @@ void drawMonitorWifi(int x, int y, int h)
 }
 
 // Lokale hulpfunctie voor het Alert icoon (Rechtstreeks op TFT)
-void drawMonitorAlert(int x, int y, int size, uint16_t color = 0, bool unused = false)
+void drawMonitorAlert(int x, int y, int size, uint16_t color = state.env.icon_base_color, bool unused = false)
 {
     // Basis driehoek
     tft.fillTriangle(x + size / 2, y, x, y + size, x + size, y + size, color);
@@ -65,22 +65,22 @@ void drawMonitorAlert(int x, int y, int size, uint16_t color = 0, bool unused = 
     int bw = size / 6;
     int bh = size / 2.2;
     tft.fillRoundRect(x + (size / 2) - (bw / 2), y + (size / 3), bw, bh, 1, TFT_BLACK);
-    tft.fillCircle(x + (size / 2), y + size - (size / 4), size / 10, TFT_BLACK);
+    tft.fillCircle(x + (size / 2), y + size - (size / 6), size / 10, TFT_BLACK);
 }
 
 // --- PRIVATE HULPFUNCTIES (Niet in .h zetten) ---
 
-static void drawStep(const char *title, const char *l1, const char *l2, uint16_t color)
-{
-    tft.fillScreen(TFT_BLACK);
-    tft.drawRoundRect(2, 2, 316, 166, 10, color);
-    tft.setTextColor(color, TFT_BLACK);
-    tft.setTextFont(2);
-    tft.drawString(title, 15, 80);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString(l1, 15, 100);
-    tft.drawString(l2, 15, 120);
-}
+// static void drawStep(const char *title, const char *l1, const char *l2, uint16_t color)
+// {
+//     tft.fillScreen(TFT_BLACK);
+//     tft.drawRoundRect(2, 2, 316, 166, 10, color);
+//     tft.setTextColor(color, TFT_BLACK);
+//     tft.setTextFont(2);
+//     tft.drawString(title, 15, 80);
+//     tft.setTextColor(TFT_WHITE, TFT_BLACK);
+//     tft.drawString(l1, 15, 100);
+//     tft.drawString(l2, 15, 120);
+// }
 
 // --- PUBLIEKE FUNCTIES ---
 
@@ -105,7 +105,7 @@ void startAccessPoint()
 
     initWebServer();
 
-    Serial.println(F("Setup Mode gestart op 192.168.4.1"));
+    Serial.printf("Setup Mode gestart op 192.168.4.1\n");
 }
 
 void drawSetupModeActive()
@@ -120,27 +120,6 @@ void drawSetupModeActive()
     {
         currentStatus = (WiFi.softAPgetStationNum() > 0) ? 1 : 0; // Scenario B: Stap 1 of 2
     }
-    // static int lastStatus = -1;
-    // int currentStatus;
-
-    // // Pak de actuele gegevens
-    // int stations = WiFi.softAPgetStationNum();
-    // bool isConnectedSTA = (WiFi.status() == WL_CONNECTED);
-    // bool isServerActive = state.network.web_server_active;
-
-    // // Bepaal de status nauwkeuriger
-    // if (isServerActive && isConnectedSTA)
-    // {
-    //     currentStatus = 2; // BEHEER (via eigen router)
-    // }
-    // else if (stations > 0)
-    // {
-    //     currentStatus = 1; // STAP 2 (Telefoon verbonden met AP)
-    // }
-    // else
-    // {
-    //     currentStatus = 0; // STAP 1 (AP zoekt verbinding)
-    // }
 
     // 2. HET STATISCHE DEEL (Alleen tekenen bij verandering van status!)
     if (currentStatus != lastStatus)
@@ -205,13 +184,52 @@ void drawSetupModeActive()
     tft.fillRect(10, 160, barWidth, 5, TFT_GOLD);
     tft.fillRect(barWidth + 11, 161, xWidth - barWidth - 2, 3, TFT_BLACK);
 
-    tft.fillCircle(158, 10, 4, state.display.touch_indicator_color);
+    tft.fillCircle(200, 10, 4, state.display.touch_indicator_color);
 }
+
+void showNetworkInfo()
+{
+    tft.fillScreen(TFT_BLACK);
+
+    updateDisplayBrightness(Config::default_brightness);
+
+    tft.drawRoundRect(2, 2, tft.width() - 4, tft.height() - 4, 10, TFT_GREEN);
+    tft.drawBitmap(20, 20, image_DolphinSuccess_bits, 108, 57, TFT_WHITE);
+
+    tft.setTextFont(2);
+    tft.setTextColor(TFT_WHITE);
+    tft.drawString("SYSTEEM START", 140, 30);
+    tft.setTextColor(TFT_SKYBLUE);
+    tft.drawString("mDNS: " + state.network.mdns, 140, 60);
+    tft.setTextColor(TFT_WHITE);
+    tft.drawString("IP: " + WiFi.localIP().toString(), 140, 80);
+}
+
+void showSetupInstructionPanel()
+{
+    datSpr.fillSprite(TFT_BLACK);
+    datSpr.setTextColor(TFT_GOLD);
+    datSpr.setTextDatum(MC_DATUM); // Midden-gecentreerd
+
+    datSpr.drawString("WEER SETUP NODIG", datSpr.width() / 2, 20, 2);
+
+    datSpr.setTextColor(TFT_WHITE);
+    datSpr.drawString("Ga naar:", datSpr.width() / 2, 50, 2);
+    datSpr.setTextColor(TFT_SKYBLUE);
+    datSpr.drawString(WiFi.localIP().toString(), datSpr.width() / 2, 75, 4);
+
+    datSpr.setTextColor(TFT_WHITE);
+    datSpr.drawString("en voer je API key in", datSpr.width() / 2, 110, 2);
+
+    datSpr.pushSprite(Config::data_x, Config::data_y);
+    delay(100); // Korte pauze om te voorkomen dat dit te snel hertekent
+}
+
 
 void drawSystemMonitor()
 {
     // 1. EENMALIGE BASIS (Het kader en de labels)
-    if (!monitorBackgroundDrawn)
+    if (!state.display.show_sm_bg_drawn)
     {
         tft.fillScreen(TFT_BLACK);
         tft.drawFastHLine(5, 25, 310, TFT_DARKGREY);
@@ -220,13 +238,14 @@ void drawSystemMonitor()
         tft.setTextFont(2);
         tft.setTextColor(TFT_LIGHTGREY);
         tft.drawString("Heap:", 15, 60);
-        tft.drawString("MaxBlok:", 15, 80);
-        tft.drawString("Temp:", 15, 100);
+        tft.drawString("MaxBlok:", 210, 60);
+        tft.drawString("B-Light:", 15, 80);
+        tft.drawString("C-Temp:", 15, 100);
         tft.drawString("Sensoren:", 15, 120);
 
         tft.setTextFont(1);
         tft.drawCentreString("HOLD 3s TO EXIT", 260, 150, 1);
-        monitorBackgroundDrawn = true;
+        state.display.show_sm_bg_drawn = true;
     }
 
     // 2. DYNAMISCHE DATA (Met achtergrondkleur om flikkeren te voorkomen)
@@ -236,23 +255,27 @@ void drawSystemMonitor()
 
     // Bovenbalk: Tijd & Datum
     // Door TFT_BLACK als tweede parameter te geven, wist de tekst zichzelf
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    String topRow = String(state.env.current_time_str) + "  |  " + String(state.env.current_date_str);
-    tft.drawString(topRow.c_str(), 10, 5);
 
-    tft.fillCircle(280, 8, 4, state.display.touch_indicator_color); // Touch feedback indicator
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    char topRow[32];
+    snprintf(topRow, sizeof(topRow), "%s  |  %s", state.env.current_time_str, state.env.current_date_str);
+    tft.drawString(topRow, 10, 5);
+
+    tft.fillCircle(200, 10, 4, state.display.touch_indicator_color); // Touch feedback indicator
 
     drawMonitorWifi(295, 5, 15);
 
     // Status melding
+    int x = 270; int y = 30; int h = 20;
     if (state.env.health != HEALTH_OK)
     {
-        drawMonitorAlert(10, 35, 40, state.env.get_current_alert_color(), true);
+        drawMonitorAlert(x, y, h, state.env.get_current_alert_color(), true);
         tft.setTextColor(state.env.get_current_alert_color(), TFT_BLACK);
-        tft.drawString("SYSTEEM ALERT!          ", 60, 45); // Spaties wissen oude tekst
+        tft.drawString("SYSTEEM ALERT!          ", 10, 35); // Spaties wissen oude tekst
     }
     else
     {
+        drawMonitorAlert(x, y, h, state.env.icon_base_color, true);
         tft.setTextColor(TFT_GREEN, TFT_BLACK);
         tft.drawString("SYSTEEM STATUS: OPTIMAAL", 10, 35);
     }
@@ -262,23 +285,26 @@ void drawSystemMonitor()
     char maxAllocBuffer[32];
     char tempBuffer[32];
     char sensorBuffer[32];
+    char pwmBuffer[32];
 
     // We voegen de actuele metingen per onderdeel samen in één string
     snprintf(heapBuffer, sizeof(heapBuffer), "%dkB (%dkB min)   ", ESP.getFreeHeap() / 1024, ESP.getMinFreeHeap() / 1024);
     snprintf(maxAllocBuffer, sizeof(maxAllocBuffer), "%dkB   ", ESP.getMaxAllocHeap() / 1024);
     snprintf(tempBuffer, sizeof(tempBuffer), "%.0fC (max %.0fC)  ", state.env.case_temp, Config::system_temp_warning);
     snprintf(sensorBuffer, sizeof(sensorBuffer), "AHT: %.1fC (%.1fC) BMP: %.1f hPa  ", state.env.temp_local, state.env.raw_temp_local, state.env.press_local);
+    snprintf(pwmBuffer, sizeof(pwmBuffer), "PWM: %d%%   ", map(state.display.backlight_pwm, 0, 255, 0, 100));
 
     tft.setTextColor(TFT_WHITE, TFT_BLACK); // De zwarte achtergrond wast de oude tekst weg
     tft.setTextFont(2);
     tft.drawString(heapBuffer, 85, 60); // Teken de hele handel op een vaste positie
 
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString(maxAllocBuffer, 85, 80); // Teken de hele handel op een vaste positie
+    tft.drawString(maxAllocBuffer, 270, 60); // Teken de hele handel op een vaste positie
 
     tft.setTextColor(state.env.health == HEALTH_OK ? TFT_WHITE : TFT_ORANGE, TFT_BLACK);
     tft.drawString(tempBuffer, 85, 100); // Teken de hele handel op een vaste positie
-
+    tft.setTextColor(state.env.health == HEALTH_OK ? TFT_WHITE : TFT_ORANGE, TFT_BLACK);
+    tft.drawString(pwmBuffer, 85, 80); // Teken de hele handel op een vaste positie
     if (state.env.aht_ok && state.env.bmp_ok)
     {
         tft.setTextColor(state.env.health == HEALTH_OK ? TFT_WHITE : TFT_ORANGE, TFT_BLACK);
@@ -317,7 +343,7 @@ void haltSystemWithInstruction()
     tft.setTextColor(TFT_WHITE);
     tft.drawCentreString("Haal de stekker eruit en er weer in.", 160, 135, 1);
 
-    Serial.println(F("[SYSTEM] Systeem bevroren. Wacht op power-cycle..."));
+    Serial.printf("[SYSTEM] Systeem bevroren. Wacht op power-cycle...\n");
 
     // 3. De 'Freeze'
     // We laten de Buck aan (digitalWrite LOW), anders zie je de tekst niet.
@@ -354,6 +380,6 @@ void stopSetupMode()
             digitalWrite(Config::pin_fingerprint_led, LOW);
             delay(100);
         }
-        Serial.println(F("[UI] Scherm hersteld na beheer-modus."));
+        Serial.printf("[UI] Scherm hersteld na beheer-modus.\n");
     }
 }

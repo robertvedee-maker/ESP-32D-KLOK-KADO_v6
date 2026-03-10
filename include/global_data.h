@@ -92,6 +92,11 @@ struct EnvData
     bool bmp_ok = false;
     bool ds18b20_ok = false;
 
+    // Barometer
+    float pressure = 1013.25; // Actuele druk van BMP280
+    int baro_trend = 0;       // -1 = dalend, 0 = stabiel, 1 = stijgend
+    float baro_ref_3h = 1013.25; // De referentie voor de trend, opgeslagen in NVS en bijgewerkt elke 3 uur
+
     // Gezondheidsscore en gerelateerde kleuren/statussen
     bool is_night_mode = false;
     bool is_alert_active = false;
@@ -109,7 +114,7 @@ struct EnvData
     }
     double sunrise_local = 0.0, sunset_local = 0.0, moonrise_local = 0.0, moonset_local = 0.0;
     char sunrise_str[6] = "00:00", sunset_str[6] = "00:00";
-    char current_time_str[10] = "00:00:00", current_date_str[12] = "01-01-2024";
+    char current_time_str[10] = "00:00:00", current_date_str[14] = "ZO 01-01-2024";
     float raw_temp_local = 0.0; // De ruwe temperatuur van de AHT20, voor interne checks
     float temp_local = 0.0;
     float hum_local = 0.0;
@@ -177,6 +182,7 @@ struct DisplaySettings
     bool show_config_qr = false; // Is de QR-code nu zichtbaar in datSpr?
 
     bool show_system_monitor = false;
+    bool show_sm_bg_drawn = false;
 
     bool led_enabled = true;
     int led_brightness = 200;

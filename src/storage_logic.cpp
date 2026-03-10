@@ -7,13 +7,13 @@ Preferences preferences;
 // --- DE HOOFDKRAAN ---
 void initStorage()
 {
-    Serial.println(F("[STORAGE] Systeem laden..."));
+    Serial.printf("[STORAGE] Systeem laden...\n");
     // loadUserData();        // Laadt naam en geboortedatum
     loadNetworkConfig();   // Laadt SSID/Pass
     loadOMWConfig();       // Laadt OWM key en Lat/Lon
     loadDisplaySettings(); // Laadt Helderheid, Transitie, User en LED
     loadWeatherCache();    // Laadt de laatste weerdata (voor snelle weergave bij opstarten)
-    Serial.println(F("[STORAGE] Alles succesvol gesynchroniseerd."));
+    Serial.printf("[STORAGE] Alles succesvol gesynchroniseerd.\n");
     // Debugging: Altijd handig om te zien of het gelukt is
     Serial.printf("[STORAGE] Geladen: Mode=%d, Naam=%s\n",
                   state.network.wifi_mode, state.user.name.c_str());

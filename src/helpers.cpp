@@ -19,10 +19,50 @@
 #include "web_config.h"
 #include <qrcode.h>
 
-extern SystemState state; // Voor toegang tot de centrale 'state' struct
-static bool monitorBackgroundDrawn = false;
+// --- HULPFUNCTIES: Kleine functies die in meerdere files worden gebruikt, zoals het omzetten van data naar tekst of symbolen, of het tekenen van veelgebruikte elementen op het scherm. ---
+void addTickerSegment(String txt, uint16_t col);
+void drawQRCodeOnTFT(const char *data, int x, int y, int scale);
+void drawWeatherIcon(TFT_eSprite &spr, int x, int y, int size, int iconId, bool isDay);
+void drawISOAlert(int x, int y, int size, uint16_t color, bool active);
+void drawWifiIndicator(int x, int y, int h);
+void evaluateSystemSafety();
+void finalizeSetupAndShowDashboard();
+void finalizeUIAfterSetup();
+void handleHardware();
+void handleTouchLadder();
+void manageDataPanels();
+void manageStatusLed();
+void manageTimeFunctions();
+void powerDownWiFi();
+void setupDisplay();
+void updateClock();
+void updateDataPaneelVandaag();
+void updateDataPaneelForecast();
+void updateDisplayBrightness(int level);
+void updateTickerSegments();
+void updateTouchLedFeedback(unsigned long duration);
+void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant);
+bool vulGepersonaliseerdFeitje(char *buffer, size_t bufferSize);
 
-// --- Helper functies voor het omzetten van data naar tekst of symbolen ---
+extern SystemState state; // Voor toegang tot de centrale 'state' struct
+
+// --- LOGICA VOOR HET OMZETTEN VAN DATA NAAR TEKST OF SYMBOLEN ---
+
+// Simpele mapping van OpenWeatherMap codes naar kleuren
+uint16_t getIconColor(int conditionCode)
+{
+    if (conditionCode >= 200 && conditionCode < 300)
+        return TFT_SILVER; // Onweer
+    if (conditionCode >= 300 && conditionCode < 600)
+        return TFT_BLUE; // Regen
+    if (conditionCode >= 600 && conditionCode < 700)
+        return TFT_WHITE; // Sneeuw
+    if (conditionCode == 800)
+        return TFT_YELLOW; // Helder
+    return TFT_LIGHTGREY;  // Bewolkt/Rest
+}
+
+// Windroos en Beaufort schaal
 String getWindRoos(int graden)
 {
     const char *roos[] = {"N", "NNO", "NO", "ONO", "O", "OZO", "ZO", "ZZO", "Z", "ZZW", "ZW", "WZW", "W", "WNW", "NW", "NNW"};
@@ -58,46 +98,6 @@ int getBeaufort(float ms)
     return 12;
 }
 
-void addTickerSegment(String txt, uint16_t col);
-void drawQRCodeOnTFT(const char *data, int x, int y, int scale);
-void drawWeatherIcon(TFT_eSprite &spr, int x, int y, int size, int iconId, bool isDay);
-void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant);
-bool vulGepersonaliseerdFeitje(char *buffer, size_t bufferSize);
-// void drawSetupModeActive();
-void drawWebConfigQRinDataPaneel();
-void evaluateSystemSafety();
-void finalizeSetupAndShowDashboard();
-void handleTouchLadder();
-void manageDataPanels();
-void manageStatusLed();
-void manageTimeFunctions();
-void updateClock();
-void updateDataPaneelVandaag();
-void updateDataPaneelForecast();
-void updateDisplayBrightness(int level);
-void updateTickerSegments();
-void updateTouchLedFeedback(unsigned long duration);
-void showNetworkInfo();
-void showSetupInstructionPanel();
-void setupDisplay();
-
-void finalizeUIAfterSetup();
-void powerDownWiFi();
-
-// Voeg dit toe onderaan je helpers.cpp als tijdelijke fix:
-uint16_t getIconColor(int conditionCode)
-{ // Simpele mapping van OpenWeatherMap codes naar kleuren
-    if (conditionCode >= 200 && conditionCode < 300)
-        return TFT_SILVER; // Onweer
-    if (conditionCode >= 300 && conditionCode < 600)
-        return TFT_BLUE; // Regen
-    if (conditionCode >= 600 && conditionCode < 700)
-        return TFT_WHITE; // Sneeuw
-    if (conditionCode == 800)
-        return TFT_YELLOW; // Helder
-    return TFT_LIGHTGREY;  // Bewolkt/Rest
-}
-
 int berekenMinutenTotUpdate()
 {
     // 1. Haal de huidige tijd (Epoch) op
@@ -113,15 +113,145 @@ int berekenMinutenTotUpdate()
     return (int)((volgendeUpdate - nu) / 60);
 }
 
+// Barometer tekst op basis van druk en trend, met tijdsafhankelijke interpretatie
+const char *getBaroText(char *buffer, size_t bufferSize)
+{
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo))
+    {
+        snprintf(buffer, bufferSize, "TIJD FOUT");
+        return buffer;
+    }
+
+    int h = timeinfo.tm_hour;
+    float p = state.env.pressure;
+    int t = state.env.baro_trend;
+
+    // 1. BASISWAARDE (Altijd een vangnet)
+    const char *result = "ZONNIG & STABIEL";
+
+    // 2. EXTREMEN (Gaan voor alles)
+    if (p < 980)
+        result = "STORM";
+    else if (p > 1035)
+        result = "ZEER DROOG";
+
+    // 3. DAGDELEN (Nacht & Avond)
+    else if (h >= 23 || h < 6)
+    {
+        if (t < 0)
+            result = "REGEN MORGEN?";
+        else if (p > 1018)
+            result = "MOOIE MORGEN";
+        else
+            result = "RUSTIGE NACHT";
+    }
+    else if (h >= 17)
+    {
+        if (t < 0)
+            result = "BETREKT VANAVOND";
+        else if (p > 1018)
+            result = "HELDERE AVOND";
+        else
+            result = "KOELE AVOND";
+    }
+
+    // 4. STANDAARD DAG (06:00 - 17:00)
+    else
+    {
+        // EERST: Check of OWM actuele info heeft (JOUW VERFIJNING)
+        const char *owmText = state.weather.description.c_str();
+        if (strlen(owmText) > 0)
+        {
+            String desc = String(owmText);
+            desc.trim();
+            if (desc.length() >= 17)
+            {
+                int firstSpace = desc.indexOf(' ');
+                if (firstSpace != -1)
+                {
+                    desc = desc.substring(firstSpace + 1);
+                    desc.trim();
+                }
+            }
+            if (desc.length() > 0)
+            {
+                desc.toUpperCase();
+                snprintf(buffer, bufferSize, "%s", desc.substring(0, 16).c_str());
+                return buffer; // We geven de OWM tekst direct terug
+            }
+        }
+
+        // TWEEDE: Fallback op Barometer als OWM leeg is
+        if (p < 1000)
+            result = (t < 0) ? "REGEN/WIND" : "WISSELVALLIG";
+        else if (p < 1012)
+            result = (t > 0) ? "VERBETERING" : "BEWOLKT";
+        else if (p < 1022)
+            result = (t < 0) ? "LICHT BEWOLKT" : "MOOI WEER";
+    }
+
+    // Alles wat niet via OWM is gegaan, komt hier in de buffer
+    snprintf(buffer, bufferSize, "%s", result);
+    return buffer;
+}
+
+// const char *getBaroText(char *buffer, size_t bufferSize, int h)
+// {
+//     struct tm timeinfo;
+//     if (!getLocalTime(&timeinfo))
+//     {
+//         snprintf(buffer, bufferSize, "TIJD FOUT");
+//         return buffer;
+//     }
+
+//     h = timeinfo.tm_hour;
+//     float p = state.env.pressure;
+//     int t = state.env.baro_trend;
+
+//     // Extreem
+//     if (p < 980)
+//         return "STORM";
+//     if (p > 1035)
+//         return "ZEER DROOG";
+
+//     if (h >= 23 || h < 6)
+//     { // NACHT: Vooruitblik op morgenochtend
+//         if (t < 0)
+//             return "REGEN MORGEN?";
+//         if (p > 1018)
+//             return "MOOIE MORGEN";
+//         return "RUSTIGE NACHT";
+//     }
+//     if (h >= 17)
+//     { // AVOND: Vooruitblik op de nacht
+//         if (t < 0)
+//             return "BETREKT VANAVOND";
+//         if (p > 1018)
+//             return "HELDERE AVOND";
+//         return "KOELE AVOND";
+//     }
+//     // STANDAARD DAG (06:00 - 17:00)
+
+//     // Lage druk
+//     if (p < 1000)
+//         return (t < 0) ? "REGEN/WIND" : "WISSELVALLIG";
+
+//     // Middengebied (1000 - 1020)
+//     if (p < 1012)
+//         return (t > 0) ? "VERBETERING" : "BEWOLKT";
+//     if (p < 1022)
+//         return (t < 0) ? "LICHT BEWOLKT" : "MOOI WEER";
+
+//     // Hoge druk
+//     return "ZONNIG & STABIEL";
+// }
+
 // --- INITIALISATIE ---
 
-//          --- DISPLAY SETUP FUNCTIE ---
+// --- DISPLAY SETUP FUNCTIE ---
 void setupDisplay()
 {
-    // // 1. Hardware onderdrukking (Dark Boot)
-    // pinMode(Config::pin_backlight, OUTPUT);
-    // digitalWrite(Config::pin_backlight, LOW);
-
     // 2. Initialiseer TFT
     tft.init();
 #ifdef TFT_ROTATION
@@ -132,9 +262,9 @@ void setupDisplay()
 
     // 3. Zet de Buck nu AAN
     digitalWrite(Config::pin_buck_enable, LOW);
-    
+
     // 4. ONMIDDELLIJK zwart schrijven (vóór de controller zijn eigen witte beeld vult)
-    tft.fillScreen(TFT_BLACK); 
+    tft.fillScreen(TFT_BLACK);
 
     // 3. Haal de actuele schermmaten op (na rotatie!)
     int sw = tft.width();  // Geeft 320 op je huidige scherm
@@ -160,6 +290,7 @@ void setupDisplay()
     // updateDisplayBrightness(state.display.backlight_pwm);
 }
 
+// --- FINALISATIE NA SETUP: Alles klaarzetten en dashboard tonen ---
 void finalizeSetupAndShowDashboard()
 {
     // 1. Trek het gordijn dicht (Snel faden naar zwart)
@@ -202,7 +333,7 @@ void finalizeSetupAndShowDashboard()
     }
 }
 
-//          --- BACKLIGHT FUNCTIES ---
+// --- BACKLIGHT FUNCTIES ---
 void updateDisplayBrightness(int level)
 {
     // Gebruik een 'static' variabele om de ÉCHTE hardware stand te onthouden
@@ -256,7 +387,7 @@ void updateDisplayBrightness(int level)
     state.display.backlight_pwm = level;
 }
 
-//          --- TICKER SEGMENT FUNCTIES ---
+// --- TICKER SEGMENT FUNCTIES ---
 void addTickerSegment(String txt, uint16_t col)
 {
     TickerSegment seg;
@@ -271,7 +402,7 @@ void addTickerSegment(String txt, uint16_t col)
     state.ticker_segments.push_back(seg);
 }
 
-//          --- KLOK UPDATE FUNCTIE ---
+// --- KLOK UPDATE FUNCTIE ---
 void updateClock()
 {
     struct tm timeinfo;
@@ -280,13 +411,10 @@ void updateClock()
         // Teken de wijzers (deze functie komt uit classic_clock.cpp)
         // We geven de uren, minuten en seconden door
         renderFace(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-
-        // Stuur de complete klok-sprite naar het scherm (Links, boven)
-        // clkSpr.pushSprite(0, 0);
     }
 }
 
-//          --- DATA PANEL UPDATE FUNCTIES ---
+// --- DATA PANEL UPDATE FUNCTIES ---
 void updateDataPaneelVandaag()
 {
     uint16_t TFT_BGD = state.env.is_night_mode ? Config::bg_color_night : Config::bg_color_day;
@@ -340,13 +468,38 @@ void updateDataPaneelVandaag()
     datSpr.drawString(String(bft) + " Bft", kX, kY + kR + 18);
 
     // --- 4. EXTRA INFO ---
-    datSpr.setTextFont(2);
-    datSpr.setTextDatum(BL_DATUM);
-    datSpr.setTextColor(TFT_LIGHTGREY);
-    datSpr.drawString("V: " + String((int)state.weather.humidity) + "% | UV: " + String(state.weather.uvi, 1), 5, 145);
+    // datSpr.setTextFont(2);
+    // datSpr.setTextDatum(BL_DATUM);
+    // datSpr.setTextColor(TFT_LIGHTGREY);
+    // datSpr.drawString("V: " + String((int)state.weather.humidity) + "% | UV: " + String(state.weather.uvi, 1), 5, 145);
+
+    // Voorbeeld voor in je sprite/render:
+    int xMidden = 10;
+    int yMidden = 136;
+
+    if (state.env.baro_trend == 1)
+    { // Punten: (top), (links-onder), (rechts-onder)
+        datSpr.fillTriangle(xMidden, yMidden - 6, xMidden - 4, yMidden - 2, xMidden + 4, yMidden - 2, TFT_GREEN);
+    }
+    else if (state.env.baro_trend == -1)
+    { // Punten: (bodem), (links-boven), (rechts-boven)
+        datSpr.fillTriangle(xMidden, yMidden + 6, xMidden - 4, yMidden + 2, xMidden + 4, yMidden + 2, TFT_RED);
+    }
+    else
+    { // Stabiel: klein streepje of niks
+        datSpr.drawFastHLine(xMidden - 5, yMidden, 12, TFT_LIGHTGREY);
+    }
+
+    datSpr.setTextDatum(BL_DATUM); // Bottom Left
+    datSpr.setTextColor(TFT_GOLD);
+    char baroBuffer[20];
+    datSpr.drawString(getBaroText(baroBuffer, sizeof(baroBuffer)), xMidden + 12, yMidden + 8, 2); // Tekst naast de pijltjes
 
     drawWifiIndicator(146, 130, 13);
-    drawISOAlert(120, 125, 18, 0, state.env.is_alert_active);
+    if (state.env.is_alert_active)
+    {
+        drawISOAlert(120, 120, 18, 0, state.env.is_alert_active);
+    }
 
     // --- 5. DE RELATIEVE HORIZON ---
     struct tm timeinfo;
@@ -378,13 +531,8 @@ void updateDataPaneelVandaag()
     int xMaanOp = tlX_center + (int)(distMaanOp * pixelsPerUur);
     int xMaanOnder = tlX_center + (int)(distMaanOnder * pixelsPerUur);
 
-    // Serial.printf("[HORIZON] Nu: %.2f | Zon op: %.2f (x=%d) | Zon onder: %.2f (x=%d) | Maan op: %.2f (x=%d) | Maan onder: %.2f (x=%d)\n",
-    //               nuDecimal, state.env.sunrise_local, xZonOp, state.env.sunset_local, xZonOnder,
-    //               state.env.moonrise_local, xMaanOp, state.env.moonset_local, xMaanOnder);
-
     // Maan op en onder tekenen als ze binnen het zichtbare bereik vallen (0-170 pixels)
     // Hulpvariabele voor de schaduwkleur (matcht met je horizonlijn)
-
     if (xMaanOp > 0 && xMaanOp < 170)
     {
         // 1. De basis (volledige maan in goud/wit)
@@ -432,6 +580,7 @@ void updateDataPaneelVandaag()
         datSpr.fillCircle(xZonOp, tlY + 1, r + 1, TFT_WHITE); // De witte 'gloed' rand
         datSpr.fillCircle(xZonOp, tlY + 1, r, TFT_YELLOW);    // De gele kern
         datSpr.setTextDatum(BC_DATUM);
+        datSpr.setTextColor(TFT_LIGHTGREY);
         datSpr.setTextFont(1);
         if (xZonOp > 95)
         {
@@ -442,6 +591,7 @@ void updateDataPaneelVandaag()
     {
         datSpr.fillCircle(xZonOnder, tlY + 1, r, TFT_ORANGE);
         datSpr.setTextDatum(BC_DATUM);
+        datSpr.setTextColor(TFT_LIGHTGREY);
         datSpr.setTextFont(1);
         if (xZonOnder > 95)
         {
@@ -452,6 +602,7 @@ void updateDataPaneelVandaag()
     datSpr.fillTriangle(tlX_center, tlY - 2, tlX_center - 4, tlY - 8, tlX_center + 4, tlY - 8, TFT_WHITE);
 }
 
+// --- UPDATE FUNCTIE VOOR HET VOORSPELLINGS-PANEEL (3 DAGEN) ---
 void updateDataPaneelForecast()
 {
     datSpr2.fillSprite(TFT_BLACK); // We gebruiken datSpr voor beide panelen
@@ -496,29 +647,7 @@ void updateDataPaneelForecast()
     }
 }
 
-//          --- NETWERK INFO PANELS ---
-void showSetupInstructionPanel()
-{
-    datSpr.fillSprite(TFT_BLACK);
-    datSpr.setTextColor(TFT_GOLD);
-    datSpr.setTextDatum(MC_DATUM); // Midden-gecentreerd
-
-    datSpr.drawString("WEER SETUP NODIG", datSpr.width() / 2, 20, 2);
-
-    datSpr.setTextColor(TFT_WHITE);
-    datSpr.drawString("Ga naar:", datSpr.width() / 2, 50, 2);
-    datSpr.setTextColor(TFT_SKYBLUE);
-    datSpr.drawString(WiFi.localIP().toString(), datSpr.width() / 2, 75, 4);
-
-    datSpr.setTextColor(TFT_WHITE);
-    datSpr.drawString("en voer je API key in", datSpr.width() / 2, 110, 2);
-
-    datSpr.pushSprite(Config::data_x, Config::data_y);
-    delay(100); // Korte pauze om te voorkomen dat dit te snel hertekent
-}
-
-// --- 1. HET DOFIJN-SCHERM (Netwerk info) ---
-
+// --- TEKENFUNCTIE VOOR QR-CODE: Gebruikt de qrcode library om een QR-code te genereren en direct op het TFT-scherm te tekenen. ---
 void drawQRCodeOnTFT(const char *data, int x, int y, int scale)
 {
     QRCode qrcode;
@@ -539,26 +668,10 @@ void drawQRCodeOnTFT(const char *data, int x, int y, int scale)
     }
 }
 
-void showNetworkInfo()
-{
-    tft.fillScreen(TFT_BLACK);
-
-    updateDisplayBrightness(Config::default_brightness);
-
-    tft.drawRoundRect(2, 2, tft.width() - 4, tft.height() - 4, 10, TFT_GREEN);
-    tft.drawBitmap(20, 20, image_DolphinSuccess_bits, 108, 57, TFT_WHITE);
-
-    tft.setTextFont(2);
-    tft.setTextColor(TFT_WHITE);
-    tft.drawString("SYSTEEM START", 140, 30);
-    tft.setTextColor(TFT_SKYBLUE);
-    tft.drawString("mDNS: " + state.network.mdns, 140, 60);
-    tft.setTextColor(TFT_WHITE);
-    tft.drawString("IP: " + WiFi.localIP().toString(), 140, 80);
-}
-
 // ---   TEKENFUNCTIES ---
 
+// Tekent een WiFi-indicator met 4 bars, waarbij de kleur en het aantal bars afhankelijk zijn van het gescande signaal (RSSI).
+// De indicator heeft ook een speciale "stand-by" kleur wanneer we in On-Demand mode zitten zonder verbinding.
 void drawWifiIndicator(int x, int y, int h)
 {
     static float filteredRSSI = -70.0;
@@ -729,7 +842,6 @@ void handleTouchLadder()
     static unsigned long touchStart = 0;
     static bool isTouching = false;
     static unsigned long lastLog = 0;
-    static bool monitorBackgroundDrawn = false;
     static int lastStatus = -1; // Voor het forceren van een update bij statusverandering
 
     // --- 1. AANRAKING DETECTIE ---
@@ -740,7 +852,7 @@ void handleTouchLadder()
             touchStart = millis(); // Dit mag maar EÉN keer gebeuren bij de eerste aanraking!
             isTouching = true;
             state.env.is_touching = true;
-            Serial.println(F("[TOUCH] Start meting..."));
+            Serial.printf("[TOUCH] Start meting...\n");
         }
 
         state.display.touch_indicator_color = TFT_BLACK; // Reset de indicatorkleur bij elke update, zodat we alleen feedback zien als we daadwerkelijk aan het drukken zijn
@@ -776,8 +888,13 @@ void handleTouchLadder()
             else if (state.display.show_system_monitor)
             {
                 // Als we in de systeemmonitor zitten, sluiten we die netjes af
-                state.display.show_system_monitor = false;
-                monitorBackgroundDrawn = false;
+                // state.display.show_system_monitor = false;
+                // state.display.show_sm_bg_drawn = false;
+                state.network.pending_restart = true; // Forceren van een herstart om alle systeemmonitor variabelen netjes te resetten
+                return;                               // Direct terugkeren, zodat we de rest van de acties NIET uitvoeren
+                // (zoals het forceren van een update of het refreshen van de panelen),
+                // omdat we in een soort 'tussenstatus' zitten waarbij sommige variabelen al gereset zijn en andere nog niet.
+                // De herstart zal dit netjes oplossen zonder dat we risico lopen op onvoorziene bugs door gedeeltelijke resets.
                 // tft.fillScreen(TFT_BLACK);
             }
             else
@@ -810,14 +927,11 @@ void handleTouchLadder()
 
             if (state.display.show_system_monitor)
             {
-                tft.fillScreen(TFT_BLACK);      // Scherm schoonvegen voor het dashboard
-                monitorBackgroundDrawn = false; // We gaan naar de systeemmonitor, dus we moeten het achtergrondscherm tekenen
+                tft.fillScreen(TFT_BLACK);              // Scherm schoonvegen voor het dashboard
+                state.display.show_sm_bg_drawn = false; // We gaan naar de systeemmonitor, dus we moeten het achtergrondscherm tekenen
             }
             else
             {
-
-                // tft.fillScreen(TFT_BLACK);
-                // monitorBackgroundDrawn = false; // We verlaten de systeemmonitor, dus we moeten het achtergrondscherm opnieuw tekenen
                 state.display.force_ticker_refresh = false; // Netjes terugkeren
             }
         }
@@ -828,7 +942,7 @@ void handleTouchLadder()
         touchStart = 0;
         state.env.is_touching = false;
         state.display.touch_indicator_color = TFT_BLACK;
-        monitorBackgroundDrawn = false;
+        state.display.show_sm_bg_drawn = false;
 
         // Update direct het datapaneel voor visuele feedback
         // Update alleen de panelen als we NIET in een speciale modus zitten
@@ -871,12 +985,12 @@ void updateTouchLedFeedback(unsigned long duration)
     else if (duration < 5000)
     {
         digitalWrite(Config::pin_fingerprint_led, (millis() % 200 < 100)); // Snel (Actie/Alert zone)
-        state.display.touch_indicator_color = TFT_CYAN;
+        state.display.touch_indicator_color = TFT_MAGENTA;
     }
     else if (duration < 8000)
     {
         digitalWrite(Config::pin_fingerprint_led, HIGH); // Constant (WebConfig zone)
-        state.display.touch_indicator_color = TFT_MAGENTA;
+        state.display.touch_indicator_color = TFT_CYAN;
     }
     else if (duration < 11000)
     {
@@ -895,21 +1009,6 @@ void updateTouchLedFeedback(unsigned long duration)
     }
 }
 
-void drawWebConfigQRinDataPaneel()
-{
-    // Teken de QR-code in datSpr (170x150)
-    datSpr.fillSprite(TFT_BLACK);
-    datSpr.setTextColor(TFT_GREEN);
-    datSpr.drawCentreString("CONFIG ACTIEF", datSpr.width() / 2, 10, 2);
-
-    char url[32];
-    snprintf(url, sizeof(url), "http://%s", WiFi.localIP().toString().c_str());
-
-    // Teken QR-code direct in de sprite
-    const char *qrWiFi = url;
-    drawQRCodeOnTFT(qrWiFi, 195, 35, 3);
-}
-
 void manageAlertTimeout()
 {
     if (!state.env.alert_muted && millis() > Config::alert_timeout)
@@ -917,7 +1016,7 @@ void manageAlertTimeout()
         state.env.alert_muted = true;         // Terug naar rustige stand
         state.display.ticker_x = tft.width(); // Reset ticker weer
         updateTickerSegments();
-        Serial.println(F("[ALARM] Auto-timeout: Ticker terug naar normaal."));
+        Serial.printf("[ALARM] Auto-timeout: Ticker terug naar normaal.\n");
     }
 }
 
@@ -932,7 +1031,7 @@ void evaluateSystemSafety()
         {
             digitalWrite(Config::pin_buck_enable, HIGH); // Buck UIT
             state.env.health = HEALTH_CRITICAL;
-            Serial.println(F("[SAFETY] EMERGENCY: Buck gedeactiveerd!"));
+            Serial.printf("[SAFETY] EMERGENCY: Buck gedeactiveerd!\n");
         }
         return; // Stop hier, we zijn in lockdown
     }
@@ -948,7 +1047,7 @@ void evaluateSystemSafety()
 
             // Reanimeer het scherm
             setupDisplay();
-            Serial.println(F("[SAFETY] Herstel: Scherm gereanimeerd."));
+            Serial.printf("[SAFETY] Herstel: Scherm gereanimeerd.\n");
         }
         else
         {
@@ -980,5 +1079,5 @@ void finalizeUIAfterSetup()
         digitalWrite(Config::pin_fingerprint_led, LOW);
         delay(100);
     }
-    Serial.println(F("[UI] Scherm hersteld na beheer-modus."));
+    Serial.printf("[UI] Scherm hersteld na beheer-modus.\n");
 }

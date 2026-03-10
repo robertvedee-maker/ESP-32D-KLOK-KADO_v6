@@ -69,33 +69,19 @@ void vulBootSegmenten()
         // We roepen je calc-functie aan met forceVariant 0
         vulEasterEggTekst(leeftijdBuf, sizeof(leeftijdBuf), gD, gM, gJ, 0);
 
-        snprintf(s.text, sizeof(s.text), "WELKOM %s! EVEN GEDULD VOOR DE WEER-UPDATE... EEN FIJTJE: %s",
+        snprintf(s.text, sizeof(s.text), "WELKOM %s! EVEN GEDULD VOOR DE WEER-UPDATE (ong. 1 min)... EEN FIJTJE: %s",
                  state.user.name.c_str(), leeftijdBuf);
     }
     else
     {
         // Fallback als er geen geboortedatum is
-        snprintf(s.text, sizeof(s.text), "WELKOM %s! EVEN GEDULD VOOR DE WEER-UPDATE...", state.user.name.c_str());
+        snprintf(s.text, sizeof(s.text), "WELKOM! EVEN GEDULD VOOR DE UPDATE VAN HET WEER (ong. 1 min)... DAARNA KAN DE WEER-KLOK ACTUEEL INFORMATIE TONEN");
     }
 
     makeUpperCase(s.text);
     s.width = tckSpr.textWidth(s.text);
     tickerSegments.push_back(s);
 }
-
-// void vulConfigSegmenten()
-// {
-//     TickerSegment s;
-//     s.color = TFT_ORANGE;
-
-//     // Kort en krachtig: geen afleiding
-//     snprintf(s.text, sizeof(s.text), " *** CONFIG ACTIEF: %s | QR-CODE: TOUCH 2 SEC *** ",
-//              WiFi.localIP().toString().c_str());
-
-//     makeUpperCase(s.text);
-//     s.width = tckSpr.textWidth(s.text);
-//     tickerSegments.push_back(s);
-// }
 
 void vulAlertSegmenten()
 {
@@ -223,7 +209,7 @@ void vulNormalSegmenten()
             tickerSegments.push_back(sEasterEgg);
             // DE GRENDEL: Verbruik de vlag direct!
             state.display.show_easter_egg = false;
-            Serial.println(F("[TICKER] Paasei toegevoegd aan de Segmenten."));
+            Serial.printf("[TICKER] Paasei toegevoegd aan de Segmenten.\n");
         }
     }
 
@@ -338,19 +324,15 @@ void manageEasterEggTimer()
     {
         int interval = random(15, 120); // Willekeurig interval tussen 15 en 120 minuten
         state.env.next_easter_egg_minute = (huidigeMinuutInDag + interval) % 1440;
-        Serial.printf(F("[PAASEI] Volgende over % d min (omstreeks minuut % d)\n"),
-                      interval, state.env.next_easter_egg_minute);
+        // Serial.printf(F("[EASTER-EGG] Volgende over % d min (omstreeks minuut % d)\n"), interval, state.env.next_easter_egg_minute);
     }
 
     // 2. IS HET TIJD? (De Grendel)
     if (huidigeMinuutInDag == state.env.next_easter_egg_minute)
     {
         state.display.show_easter_egg = true;
-
-        // CRUCIAAL: Zet hem direct op -1 zodat hij deze minuut NIET nog 1000x checkt!
-        state.env.next_easter_egg_minute = -1;
-
-        Serial.println(F("[PAASEI] Vlag omhoog en timer gereset voor de volgende ronde."));
+        state.env.next_easter_egg_minute = -1; // CRUCIAAL: Zet hem direct op -1 zodat hij deze minuut NIET nog 1000x checkt!
+        // Serial.printf(F("[EASTER-EGG] Vlag omhoog en timer gereset voor de volgende ronde.\n"));
     }
 }
 
@@ -492,27 +474,6 @@ void performTransition(TFT_eSprite *oldSpr, TFT_eSprite *newSpr)
 //          --- HOOFDFUNCTIE: Beheer van de data-panelen en de wissel daartussen ---
 void manageDataPanels()
 {
-    // static bool lastQRState = false;
-
-    // if (state.network.web_server_active && state.display.show_config_qr)
-    // {
-    //     // Alleen de ALLEREERSTE keer tekenen als de vlag op true gaat
-    //     if (!lastQRState)
-    //     {
-    //         drawWebConfigQRinDataPaneel();
-    //         lastQRState = true;
-    //         Serial.println(F("[PANEEL] QR-code eenmalig getekend. Rust hersteld."));
-    //     }
-    //     return; // We doen NIKS meer zolang de vlag true is
-    // }
-    // lastQRState = false; // Reset de vlag zodra de QR uit gaat
-
-    // // Als de server niet meer actief is, zorgen we dat de vlag ook weer op false gaat
-    // if (!state.network.web_server_active)
-    // {
-    //     state.display.show_config_qr = false;
-    // }
-
     // SPoT-Check: Als we in een andere modus zitten, doen we NIETS
     if (state.network.is_setup_mode || state.network.web_server_active || state.display.show_system_monitor)
     {
@@ -555,7 +516,7 @@ void manageDataPanels()
 
         if (state.display.show_vandaag)
         {
-            // Serial.println(F(">>> Start wissel naar Forecast"));
+            // Serial.printf(F(">>> Start wissel naar Forecast\n"));
             updateDataPaneelForecast();
 
             // STAP B: Korte pauze (10-20ms) zodat de ESP32 de sprite-buffer kan afsluiten
@@ -566,7 +527,7 @@ void manageDataPanels()
         }
         else
         {
-            // Serial.println(F(">>> Start wissel naar Vandaag"));
+            // Serial.printf(F(">>> Start wissel naar Vandaag\n"));
             updateDataPaneelVandaag();
 
             // STAP B: Korte pauze (10-20ms) zodat de ESP32 de sprite-buffer kan afsluiten

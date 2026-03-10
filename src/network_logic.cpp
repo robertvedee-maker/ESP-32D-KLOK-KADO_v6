@@ -21,7 +21,6 @@
 // Forward declarations
 void activateWiFiAndServer();
 void deactivateWiFiAndServer();
-// void disableWiFi();
 void enableWiFi();
 void handleTicker();
 void handleWiFiEco();
@@ -43,7 +42,7 @@ void powerDownWiFi() {
     // CHECK: Als de modus 0 is (Altijd aan), dan doen we NIETS.
     if (state.network.wifi_mode == 0) {
         state.network.is_updating = false; // Wel de vlag resetten!
-        Serial.println(F("[NET] WiFi blijft aan (Modus: Altijd aan)."));
+        Serial.printf("[NET] WiFi blijft aan (Modus: Altijd aan).\n");
         return; 
     }
 
@@ -54,37 +53,15 @@ void powerDownWiFi() {
         WiFi.mode(WIFI_OFF);
         state.network.web_server_active = false;
         state.network.is_updating = false;
-        Serial.println(F("[NET] WiFi fysiek uitgeschakeld (On-demand/ECO)."));
+        Serial.printf("[NET] WiFi fysiek uitgeschakeld (On-demand/ECO).\n");
     }
 }
-// void powerDownWiFi()
-// {
-//     if (WiFi.status() == WL_CONNECTED || state.network.web_server_active)
-//     {
-//         WiFi.softAPdisconnect(true);
-//         WiFi.disconnect(true);
-//         WiFi.mode(WIFI_OFF); // Radio echt uit
-//         state.network.web_server_active = false;
-//         state.network.is_updating = false;
-//         state.network.wifi_enabled = false;
-//         Serial.println(F("[NET] WiFi fysiek uitgeschakeld (Silent)."));
-//     }
-// }
-
-// void disableWiFi()
-// {
-//     WiFi.disconnect(true);
-//     WiFi.mode(WIFI_OFF);
-//     state.network.wifi_connected = false;
-//     state.network.wifi_enabled = false;
-//     Serial.println(F("[NET] WiFi Radio UITGESCHAKELD (Energiebesparing)."));
-// }
 
 void enableWiFi()
 {
     state.network.wifi_enabled = true;
     setupWiFi(); // Onze bestaande functie die de verbinding start
-    Serial.println(F("[NET] WiFi Radio INGESCHAKELD."));
+    Serial.printf("[NET] WiFi Radio INGESCHAKELD.\n");
 }
 
 void handleTicker()
@@ -122,7 +99,7 @@ void handleWiFiEco()
 
     if (magSlapen && !wifiIsGepauzeerd)
     {
-        Serial.println(F("[NET] ECO: Data is vers, WiFi mag nu slapen..."));
+        Serial.printf("[NET] ECO: Data is vers, WiFi mag nu slapen...\n");
         // disableWiFi();
         powerDownWiFi();
         wifiIsGepauzeerd = true;
@@ -130,43 +107,13 @@ void handleWiFiEco()
     // We worden wakker als het geen nacht meer is
     else if (!isNacht && wifiIsGepauzeerd)
     {
-        Serial.println(F("[NET] ECO: Nacht voorbij, WiFi wordt wakker..."));
+        Serial.printf("[NET] ECO: Nacht voorbij, WiFi wordt wakker...\n");
         enableWiFi();
         wifiIsGepauzeerd = false;
         // Optioneel: forceer direct een update na het ontwaken
         Config::forceFirstWeatherUpdate = true;
     }
 }
-
-// void handleWiFiEco()
-// {
-//     // We bemoeien ons er alleen mee als de modus op 2 (ECO/Nacht) staat
-//     if (state.network.wifi_mode != 2)
-//         return;
-
-//     struct tm timeinfo;
-//     if (!getLocalTime(&timeinfo))
-//         return;
-
-//     int huidigUur = timeinfo.tm_hour;
-//     static bool wifiIsGepauzeerd = false;
-
-//     // Nacht-logica (23:00 - 07:00)
-//     bool isNacht = (huidigUur >= 23 || huidigUur < 7);
-
-//     if (isNacht && !wifiIsGepauzeerd)
-//     {
-//         Serial.println(F("[NET] Nacht-modus: WiFi gaat slapen..."));
-//         disableWiFi(); // Gebruik je eigen functie voor fysieke uitschakeling
-//         wifiIsGepauzeerd = true;
-//     }
-//     else if (!isNacht && wifiIsGepauzeerd)
-//     {
-//         Serial.println(F("[NET] Nacht voorbij: WiFi herstellen..."));
-//         enableWiFi();
-//         wifiIsGepauzeerd = false;
-//     }
-// }
 
 // --- 3. DE HOOFD WIFI FUNCTIE ---
 void setupWiFi()
@@ -182,7 +129,7 @@ void setupWiFi()
         state.network.server_start_time = millis();
 
         startAccessPoint(); // Zorg dat deze functie de WiFi in AP mode zet
-        Serial.println(F("[WIFI] Geen geldige gegevens gevonden. Start Setup Mode..."));
+        Serial.printf("[WIFI] Geen geldige gegevens gevonden. Start Setup Mode...\n");
         // startSetupMode();
         return;
     }
@@ -195,17 +142,13 @@ void setupWiFi()
     unsigned long start = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - start < 10000)
     {
-        //     // DIT IS DE MAGIE: Terwijl we wachten op WiFi, laten we de Ticker rollen!
-        // handleTicker(); // Zorg dat deze functie tckSpr.pushSprite(0, Config::ticker_y) doet
         yield(); // Geef de WiFi-stack ademruimte
-        // delay(500);
-        // Serial.print(".");
     }
 
     // 3. Resultaat afhandelen
     if (WiFi.status() != WL_CONNECTED)
     {
-        Serial.println(F("\n[WIFI] Verbinding mislukt. Schakel over naar AP..."));
+        Serial.printf("[WIFI] Verbinding mislukt. Schakel over naar AP...\n");
         state.network.is_setup_mode = true;
         state.network.server_start_time = millis();
         startAccessPoint(); // Zorg dat deze functie de WiFi in AP mode zet
@@ -213,7 +156,7 @@ void setupWiFi()
     }
     else
     {
-        Serial.println(F("\n[WIFI] Verbonden!"));
+        Serial.printf("[WIFI] Verbonden!\n");
 
         // --- S.P.O.T. SYNC ---
         state.network.wifi_connected = true;
@@ -226,12 +169,9 @@ void setupWiFi()
 
     if (MDNS.begin(state.network.mdns.c_str()))
     {
-        Serial.print(F("[NET] mDNS actief: http://"));
-        Serial.print(state.network.mdns);
-        Serial.println(F(".local"));
+        Serial.printf("[NET] mDNS actief: http://%s.local\n", state.network.mdns.c_str());
     }
-    Serial.print(F("[NET] IP-Adres  : "));
-    Serial.println(WiFi.localIP());
+    Serial.printf("[NET] IP-Adres  : %s\n", WiFi.localIP().toString().c_str());
 }
 
 // // --- 4. OVER-THE-AIR (OTA) ---
@@ -254,12 +194,12 @@ void setupWiFi()
 //         tft.fillRect(22, 152, width - 4, 6, TFT_GREEN); });
 
 //     // ArduinoOTA.begin();
-//     Serial.println(F("OTA Ready"));
+//     Serial.printf("OTA Ready\n");
 // }
 
 void activateWiFiAndServer()
 {
-    Serial.println(F("[NET] Config-modus activeren..."));
+    Serial.printf("[NET] Config-modus activeren...\n");
 
     // 1. Ruim OUDE resten op (Gooi de oude rommel uit de Heap)
     server.end();
@@ -295,18 +235,15 @@ void activateWiFiAndServer()
         if (MDNS.begin(state.network.mdns.c_str()))
         {
             MDNS.addService("http", "tcp", 80);
-            Serial.print(F("[NET] mDNS: "));
-            Serial.print(state.network.mdns);
-            Serial.println(F(".local"));
-            Serial.print(F("[NET] IP-Adres: "));
-            Serial.println(WiFi.localIP().toString());
+            Serial.printf("[NET] mDNS: %s.local\n", state.network.mdns.c_str());
+            Serial.printf("[NET] IP-Adres: %s\n", WiFi.localIP().toString().c_str());
         }
 
         // 4. Start de server pas als de rest staat
         initWebServer(); // Zorg dat hier GEEN mDNS.begin meer in staat!
         server.begin();
         state.network.web_server_active = true;
-        Serial.println(F("[NET] Config-server is nu ACTIEF"));
+        Serial.printf("[NET] Config-server is nu ACTIEF\n");
     }
 }
 
@@ -324,45 +261,3 @@ void manageServerTimeout()
     }
 }
 
-// void deactivateWiFiAndServer()
-// {
-//     Serial.println(F("[NET] Systeem herstellen naar normale modus..."));
-
-//     // 1. Stop de actieve netwerkservices
-//     server.end();
-//     MDNS.end();
-//     WiFi.softAPdisconnect(true); // Sluit het Access Point en verwijder de SSID uit de lucht
-//     stopSetupMode(); // Zorg dat deze functie alle setup-gerelateerde flags reset
-
-//     // 2. Reset ALLE status-vlaggen
-//     state.network.web_server_active = false;
-//     state.network.is_setup_mode = false; // Cruciaal: hiermee verlaat de loop() het setup-blok
-//     state.display.show_config_qr = false;
-//     state.network.server_start_time = 0; // Reset de timer
-
-//     // 3. Forceer een UI-verversing
-//     // We wissen het scherm om resten van de setup-pagina (QR, Goud/Groen kader) te verwijderen
-//     tft.fillScreen(TFT_BLACK);
-//     state.display.force_ticker_refresh = true;
-//     state.display.force_alert_display = false; // Stop eventuele geforceerde meldingen
-
-//     // 4. Visuele & Seriële feedback
-//     Serial.println(F("[SYSTEM] Webserver gesloten. Terug naar Ticker/Klok."));
-
-//     // Knipper de LED 3x traag als bevestiging van afsluiten
-//     for (int i = 0; i < 3; i++)
-//     {
-//         digitalWrite(Config::pin_fingerprint_led, HIGH);
-//         delay(150);
-//         digitalWrite(Config::pin_fingerprint_led, LOW);
-//         delay(150);
-//     }
-
-//     // 5. Herstel WiFi-verbinding (indien nodig)
-//     // Als de klok normaal op je thuis-WiFi draait, zorgen we dat hij weer verbindt
-//     if (WiFi.status() != WL_CONNECTED && state.network.ssid.length() > 2)
-//     {
-//         Serial.println(F("[NET] WiFi verbinding herstellen..."));
-//         WiFi.begin(state.network.ssid.c_str(), state.network.pass.c_str());
-//     }
-// }

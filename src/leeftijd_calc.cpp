@@ -103,7 +103,7 @@ void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, in
     else if (variant == 12)
         snprintf(buffer, bufferSize, "JE PRODUCEERDE %ld KM HAAR!", (long)(totaalDagen * 35.0 / 1000.0));
 
-    Serial.printf("[EASTER-EGG] Fact Counter: %d, Variant: %d\n", factCounter, variant);
+    // Serial.printf("[EASTER-EGG] Fact Counter: %d, Variant: %d\n", factCounter, variant);
 }
 
 // 2. De Wrapper (haalt data uit de State en bouwt de zin)

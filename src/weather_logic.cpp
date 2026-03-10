@@ -18,6 +18,7 @@
 // forward declarations
 bool fetchWeather(bool checkOnly);
 void manageWeatherUpdates();
+void updateBaroTrend();
 void updateTickerSegments();
 String urlEncode(String str);
 void setupWiFi();
@@ -33,7 +34,7 @@ void manageWeatherUpdates()
     // 1. DE HARDE POORT: Geen uitzonderingen! We kijken ELKE 60 seconden. Punt.
     if (nuMillis - lastMinuteCheck < 60000)
     {
-        // Serial.println(F("[WEATHER-MGMT] Nog te vroeg voor de volgende check..."));
+        // Serial.printf("[WEATHER-MGMT] Nog te vroeg voor de volgende check...\n");
         return;
     }
 
@@ -50,7 +51,7 @@ void manageWeatherUpdates()
     // 4. DE UITVOERING
     if (moetNuUpdaten)
     {
-        Serial.println(F("[WEATHER-MGMT] Start update proces..."));
+        // Serial.printf("[WEATHER-MGMT] Start update proces...\n");
 
         // WiFi check
         if (WiFi.status() != WL_CONNECTED)
@@ -72,11 +73,11 @@ void manageWeatherUpdates()
             {
                 // Update gelukt: Vlag naar false, vanaf nu geldt de 30-min regel
                 Config::forceFirstWeatherUpdate = false;
-                Serial.println(F("[WEATHER-MGMT] Update voltooid. Volgende over 30 min."));
+                // Serial.printf("[WEATHER-MGMT] Update voltooid. Volgende over 30 min.\n");
             }
             else
             {
-                Serial.println(F("[WEATHER-MGMT] Fetch mislukt, probeer over 1 minuut opnieuw."));
+                Serial.printf("[WEATHER-MGMT] Fetch mislukt, probeer over 1 minuut opnieuw.\n");
             }
         }
         // On-demand: WiFi weer uit na gebruik
@@ -130,7 +131,7 @@ bool fetchWeather(bool checkOnly)
         // Alleen loggen als we niet alleen aan het checken zijn
         if (!checkOnly)
         {
-            Serial.println(F("[OWM] Te vroeg, we wachten op slot..."));
+            Serial.printf("[OWM] Te vroeg, we wachten op slot...\n");
         }
         return false;
     }
@@ -140,7 +141,9 @@ bool fetchWeather(bool checkOnly)
 
     state.network.is_updating = true;
 
-    Serial.println(F("[WEATHER] API call wordt aangesproken!..."));
+    time_t now = time(nullptr);
+    struct tm *timeinfo = localtime(&now);
+    Serial.printf("[WEATHER] API call wordt aangesproken!... | tijd: %02d:%02d\n", timeinfo->tm_hour, timeinfo->tm_min);
 
     // 2. HTTP CONNECTIE
     WiFiClient client;
@@ -179,8 +182,7 @@ bool fetchWeather(bool checkOnly)
 
     if (error)
     {
-        Serial.print(F("[WEATHER] JSON Fout: "));
-        Serial.println(error.c_str());
+        Serial.printf("[WEATHER] JSON Fout: %s\n", error.c_str());
         state.network.is_updating = false;
         prefs.end();
         return false;
@@ -190,7 +192,7 @@ bool fetchWeather(bool checkOnly)
     auto cur = doc["current"];
     if (!cur["temp"].is<float>())
     {
-        Serial.println(F("[WEATHER] Geen geldige temperatuur in JSON."));
+        Serial.printf("[WEATHER] Geen geldige temperatuur in JSON.\n");
         state.network.is_updating = false;
         prefs.end();
         return false;
