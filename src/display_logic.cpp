@@ -23,8 +23,9 @@ void drawWebConfigQRinDataPaneel();
 // 1. Hardware instanties (MOETEN hier gedefinieerd worden)
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite clkSpr = TFT_eSprite(&tft);
-TFT_eSprite datSpr = TFT_eSprite(&tft);
+TFT_eSprite datSpr1 = TFT_eSprite(&tft);
 TFT_eSprite datSpr2 = TFT_eSprite(&tft);
+TFT_eSprite datSpr3 = TFT_eSprite(&tft);
 TFT_eSprite tckSpr = TFT_eSprite(&tft);
 
 std::vector<TickerSegment> tickerSegments;
@@ -490,7 +491,7 @@ void manageDataPanels()
 
         // Teken het paneel statisch zonder transitie-gedoe
         updateDataPaneelVandaag();
-        datSpr.pushSprite(Config::data_x, Config::data_y);
+        datSpr1.pushSprite(Config::data_x, Config::data_y);
         return;
     }
 
@@ -522,7 +523,7 @@ void manageDataPanels()
             // STAP B: Korte pauze (10-20ms) zodat de ESP32 de sprite-buffer kan afsluiten
             delay(10);
 
-            performTransition(&datSpr, &datSpr2);
+            performTransition(&datSpr1, &datSpr2);
             state.display.show_vandaag = false;
         }
         else
@@ -533,7 +534,7 @@ void manageDataPanels()
             // STAP B: Korte pauze (10-20ms) zodat de ESP32 de sprite-buffer kan afsluiten
             delay(10);
 
-            performTransition(&datSpr2, &datSpr);
+            performTransition(&datSpr2, &datSpr1);
             state.display.show_vandaag = true;
         }
 
@@ -547,7 +548,7 @@ void manageDataPanels()
         if (state.display.show_vandaag)
         {
             updateDataPaneelVandaag();
-            datSpr.pushSprite(Config::data_x, Config::data_y);
+            datSpr1.pushSprite(Config::data_x, Config::data_y);
         }
         else
         {

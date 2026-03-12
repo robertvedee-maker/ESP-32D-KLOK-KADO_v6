@@ -3,7 +3,7 @@
 // Dit is de 'inhoudsopgave' voor de compiler
 void initStorage();
 
-void loadUserData();       // Laadt naam en geboortedatum
+// void loadUserData();       // Laadt naam en geboortedatum
 
 void saveDisplaySettings();
 void loadDisplaySettings(); // Laadt Helderheid, Transitie, User en LED

@@ -320,7 +320,7 @@ Zero-Delay Loop: De main.cpp is volledig non-blocking.
 Refresh Rates: Klok op 20fps, Ticker op 33fps, Data-paneel op event-basis. Dit garandeert een vloeiende weergave op de ESP32-WROOM-32D.
 4. Volgende Stappen (Backlog)
 Backup: Huidige stabiele v3.2 broncode veiligstellen op SSD.
-Fine-tuning: Eventuele toevoeging van windrichting of extra OWM-parameters in de vrije ruimte van de datSpr.
+Fine-tuning: Eventuele toevoeging van windrichting of extra OWM-parameters in de vrije ruimte van de datSpr1.
 
 📋 Project Status Briefing: ESP32 Kado-Klok (v3.0 - Multi-Sprite Engine)
 1. Architectuur Update (De "Sprite-Revolutie")

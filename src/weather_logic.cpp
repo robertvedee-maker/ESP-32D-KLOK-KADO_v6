@@ -46,7 +46,9 @@ void manageWeatherUpdates()
     bool moetNuUpdaten = Config::forceFirstWeatherUpdate || fetchWeather(true);
 
     if (!state.network.wifi_enabled && state.network.wifi_mode == 2)
+    {
         return; // WiFi is uit, en we zitten in ECO/Nacht modus, dus we respecteren dat en doen niks.
+    }
 
     // 4. DE UITVOERING
     if (moetNuUpdaten)
@@ -86,7 +88,6 @@ void manageWeatherUpdates()
             // disableWiFi();
             // deactivateWiFiAndServer();
             powerDownWiFi();
-
         }
 
         state.network.is_updating = false;

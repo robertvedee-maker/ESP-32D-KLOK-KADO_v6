@@ -56,7 +56,7 @@ void setup()
 
     // 1. Hou alles even STROOMLOOS (Buck uit)
     pinMode(Config::pin_buck_enable, OUTPUT);
-    digitalWrite(Config::pin_buck_enable, HIGH); 
+    digitalWrite(Config::pin_buck_enable, HIGH);
     delay(100); // Korte rust voor de condensatoren
 
     pinMode(Config::pin_fingerprint_led, OUTPUT);   // De Systeem-LED achter de vingerprint
@@ -80,9 +80,9 @@ void setup()
     // DISPLAY START
     setupDisplay();
 
-        // 2. Zet de stroom erop (Buck aan)
-    digitalWrite(Config::pin_buck_enable, LOW); 
-    
+    // 2. Zet de stroom erop (Buck aan)
+    digitalWrite(Config::pin_buck_enable, LOW);
+
     // 3. CRUCIAAL: Wacht tot de sensoren en het scherm 'wakker' zijn
     // De BMP280 heeft ongeveer 10-50ms nodig, de AHT20 ook.
     delay(200); // We geven het systeem een kwart seconde om volledig op te starten voordat we verder gaan, voor maximale stabiliteit
@@ -107,6 +107,7 @@ void setup()
 
     // WiFi Setup
     setupWiFi();
+    showNetworkInfo(); // Laat het IP-adres kort op het scherm zien
 
     // Tijd configureren (NTP)
     configTzTime(SECRET_TZ_INFO, SECRET_NTP_SERVER);
@@ -149,27 +150,18 @@ static unsigned long lastSetupRedraw = 0;
 
 void loop()
 {
-    // state.display.show_system_monitor = true; // TIJDELIJK: altijd de monitor uit, zodat we het dashboard zien (voor verdere ontwikkeling) --- IGNORE ---
-
     // manageTimeFunctions();
     evaluateSystemSafety();
 
     // Herstart check
-if (state.network.pending_restart) {
-    Serial.printf("[SYSTEM] Licht uit, herstarten...\n");
-    
-    // 1. Maak het scherm zwart (softwarematig)
-    tft.fillScreen(TFT_BLACK);
-    
-    // 2. Trek de stekker uit de Buck (hardwarematig)
-    digitalWrite(Config::pin_buck_enable, HIGH);
-    
-    // 3. Korte pauze om de elco's van de Buck leeg te laten lopen
-    delay(100); 
-    
-    // 4. De echte herstart
-    ESP.restart();
-}
+    if (state.network.pending_restart)
+    {
+        Serial.printf("[SYSTEM] Licht uit, herstarten...\n");
+        tft.fillScreen(TFT_BLACK);                      // 1. Maak het scherm zwart (softwarematig)
+        digitalWrite(Config::pin_buck_enable, HIGH);    // 2. Trek de stekker uit de Buck (hardwarematig)
+        delay(100);                                     // 3. Korte pauze om de elco's van de Buck leeg te laten lopen
+        ESP.restart();                                  // 4. De echte herstart
+    }
 
     // 1. TOUCH & LED (Altijd eerst voor maximale responsiviteit)
     static unsigned long lastTouchTick = 0;
@@ -231,7 +223,7 @@ if (state.network.pending_restart) {
         lastTenSecondTick = millis();
     }
 
-    // --- BLOK 6: VISUEEL (TICKER & ANIMATIE) ---
+    // --- BLOK 6: VISUEEL (KLOK, TICKER & ANIMATIE) ---
     // Alleen uitvoeren als we NIET in setup of beheer-modus zitten
     // Klok update (elke sec)
     static time_t last_now = 0;
@@ -246,4 +238,3 @@ if (state.network.pending_restart) {
     manageDataPanels();
     manageWeatherUpdates();
 }
-

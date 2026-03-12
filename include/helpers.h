@@ -9,7 +9,7 @@
 
 // 1. Hardware instanties (extern blijven)
 extern TFT_eSPI tft;
-extern TFT_eSprite clkSpr, datSpr, datSpr2, tckSpr;
+extern TFT_eSprite clkSpr, datSpr1, datSpr2, datSpr3, tckSpr;
 extern Adafruit_AHTX0 aht;
 
 // 2. Hardware-gerelateerde functies

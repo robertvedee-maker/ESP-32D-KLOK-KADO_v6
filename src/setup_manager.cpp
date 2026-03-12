@@ -68,20 +68,6 @@ void drawMonitorAlert(int x, int y, int size, uint16_t color = state.env.icon_ba
     tft.fillCircle(x + (size / 2), y + size - (size / 6), size / 10, TFT_BLACK);
 }
 
-// --- PRIVATE HULPFUNCTIES (Niet in .h zetten) ---
-
-// static void drawStep(const char *title, const char *l1, const char *l2, uint16_t color)
-// {
-//     tft.fillScreen(TFT_BLACK);
-//     tft.drawRoundRect(2, 2, 316, 166, 10, color);
-//     tft.setTextColor(color, TFT_BLACK);
-//     tft.setTextFont(2);
-//     tft.drawString(title, 15, 80);
-//     tft.setTextColor(TFT_WHITE, TFT_BLACK);
-//     tft.drawString(l1, 15, 100);
-//     tft.drawString(l2, 15, 120);
-// }
-
 // --- PUBLIEKE FUNCTIES ---
 
 void startAccessPoint()
@@ -190,12 +176,9 @@ void drawSetupModeActive()
 void showNetworkInfo()
 {
     tft.fillScreen(TFT_BLACK);
-
     updateDisplayBrightness(Config::default_brightness);
-
     tft.drawRoundRect(2, 2, tft.width() - 4, tft.height() - 4, 10, TFT_GREEN);
     tft.drawBitmap(20, 20, image_DolphinSuccess_bits, 108, 57, TFT_WHITE);
-
     tft.setTextFont(2);
     tft.setTextColor(TFT_WHITE);
     tft.drawString("SYSTEEM START", 140, 30);
@@ -203,25 +186,22 @@ void showNetworkInfo()
     tft.drawString("mDNS: " + state.network.mdns, 140, 60);
     tft.setTextColor(TFT_WHITE);
     tft.drawString("IP: " + WiFi.localIP().toString(), 140, 80);
+    delay(3000); // Laat deze info 3 seconden zien voordat je verder gaat
 }
 
-void showSetupInstructionPanel()
+void showSetupInstructionPanel()  // momenteel niet gebruikt, de OWM lat lon worden in de setup geinjecteerd vanuit Preferences.h
 {
-    datSpr.fillSprite(TFT_BLACK);
-    datSpr.setTextColor(TFT_GOLD);
-    datSpr.setTextDatum(MC_DATUM); // Midden-gecentreerd
-
-    datSpr.drawString("WEER SETUP NODIG", datSpr.width() / 2, 20, 2);
-
-    datSpr.setTextColor(TFT_WHITE);
-    datSpr.drawString("Ga naar:", datSpr.width() / 2, 50, 2);
-    datSpr.setTextColor(TFT_SKYBLUE);
-    datSpr.drawString(WiFi.localIP().toString(), datSpr.width() / 2, 75, 4);
-
-    datSpr.setTextColor(TFT_WHITE);
-    datSpr.drawString("en voer je API key in", datSpr.width() / 2, 110, 2);
-
-    datSpr.pushSprite(Config::data_x, Config::data_y);
+    datSpr1.fillSprite(TFT_BLACK);
+    datSpr1.setTextColor(TFT_GOLD);
+    datSpr1.setTextDatum(MC_DATUM); // Midden-gecentreerd
+    datSpr1.drawString("WEER SETUP NODIG", datSpr1.width() / 2, 20, 2);
+    datSpr1.setTextColor(TFT_WHITE);
+    datSpr1.drawString("Ga naar:", datSpr1.width() / 2, 50, 2);
+    datSpr1.setTextColor(TFT_SKYBLUE);
+    datSpr1.drawString(WiFi.localIP().toString(), datSpr1.width() / 2, 75, 4);
+    datSpr1.setTextColor(TFT_WHITE);
+    datSpr1.drawString("en voer je API key in", datSpr1.width() / 2, 110, 2);
+    datSpr1.pushSprite(Config::data_x, Config::data_y);
     delay(100); // Korte pauze om te voorkomen dat dit te snel hertekent
 }
 

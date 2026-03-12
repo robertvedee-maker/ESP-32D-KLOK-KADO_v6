@@ -115,7 +115,7 @@ void initWebServer()
         }
 
         String html = "<html><head>";
-        html += "<meta http-equiv='refresh' content='12;url=" + redirectURL + "'>";
+        html += "<meta http-equiv='refresh' content='10;url=" + redirectURL + "'>";
         html += "<script>window.history.replaceState({}, '', '/');</script>";
         html += "<style>body{background:#121212;color:white;text-align:center;padding-top:50px;}</style></head>";
         html += "<body><h1>Opgeslagen!</h1>";

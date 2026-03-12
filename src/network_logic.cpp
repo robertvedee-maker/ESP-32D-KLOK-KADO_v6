@@ -53,6 +53,7 @@ void powerDownWiFi() {
         WiFi.mode(WIFI_OFF);
         state.network.web_server_active = false;
         state.network.is_updating = false;
+        state.network.wifi_enabled = false;
         Serial.printf("[NET] WiFi fysiek uitgeschakeld (On-demand/ECO).\n");
     }
 }
@@ -160,7 +161,7 @@ void setupWiFi()
 
         // --- S.P.O.T. SYNC ---
         state.network.wifi_connected = true;
-        showNetworkInfo(); // Laat het IP-adres kort op het scherm zien
+        
 
         state.network.is_setup_mode = false; // Belangrijk: zet de klok-loop weer 'aan'
         initWebServer();
