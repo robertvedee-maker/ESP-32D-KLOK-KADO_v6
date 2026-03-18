@@ -425,18 +425,25 @@ void updateDataPaneelVandaag()
     // Voorbeeld voor in je sprite/render:
     int xMidden = 10;
     int yMidden = 136;
-
+    if (state.env.baro_trend == 2)
+    { // Sterk stijgend: Grote pijl omhoog
+        datSpr1.fillTriangle(xMidden, yMidden - 8, xMidden - 5, yMidden - 2, xMidden + 5, yMidden - 2, TFT_RED);
+    }
+    else if (state.env.baro_trend == -2)
+    { // Sterk dalend: Grote pijl omlaag
+        datSpr1.fillTriangle(xMidden, yMidden + 8, xMidden - 5, yMidden + 2, xMidden + 5, yMidden + 2, TFT_BLUE);
+    }
     if (state.env.baro_trend == 1)
     { // Punten: (top), (links-onder), (rechts-onder)
-        datSpr1.fillTriangle(xMidden, yMidden - 6, xMidden - 4, yMidden - 2, xMidden + 4, yMidden - 2, TFT_GREEN);
+        datSpr1.fillTriangle(xMidden, yMidden - 6, xMidden - 4, yMidden - 2, xMidden + 4, yMidden - 2, TFT_YELLOW);
     }
     else if (state.env.baro_trend == -1)
     { // Punten: (bodem), (links-boven), (rechts-boven)
-        datSpr1.fillTriangle(xMidden, yMidden + 6, xMidden - 4, yMidden + 2, xMidden + 4, yMidden + 2, TFT_RED);
+        datSpr1.fillTriangle(xMidden, yMidden + 6, xMidden - 4, yMidden + 2, xMidden + 4, yMidden + 2, TFT_CYAN);
     }
-    else
+    else if (state.env.baro_trend == 0)
     { // Stabiel: klein streepje of niks
-        datSpr1.drawFastHLine(xMidden - 5, yMidden, 12, TFT_LIGHTGREY);
+        datSpr1.drawFastHLine(xMidden - 5, yMidden, 12, TFT_GREEN);
     }
 
     datSpr1.setTextDatum(BL_DATUM); // Bottom Left
@@ -457,7 +464,8 @@ void updateDataPaneelVandaag()
 
     int tlX_center = 85, tlY = 118;
     float pixelsPerUur = Config::distance_per_hour; // Eventueel SECRET_HORIZON_PIXELS_PER_HOUR uit config
-    uint16_t shadowCol = state.env.is_night_mode ? 0x2104 : TFT_DARKGREY;
+    uint16_t shadowCol = state.env.is_night_mode ? 0x2104 : TFT_BLACK;
+    uint16_t lineCol = state.env.is_night_mode ? 0x2104 : TFT_DARKGREY; // Kleur van de horizonlijn (matcht met de nachtmodus)
     float phase = state.weather.today.moon_phase;
     float r = 5;
 
@@ -473,7 +481,7 @@ void updateDataPaneelVandaag()
     if (distMaanOp < -12.0)
         distMaanOp += 24.0;
 
-    datSpr1.drawFastHLine(5, tlY + 1, 170, state.env.is_night_mode ? 0x2104 : TFT_DARKGREY);
+    datSpr1.drawFastHLine(5, tlY + 1, 170, lineCol);
 
     int xZonOp = tlX_center + (int)(distZonOp * pixelsPerUur);
     int xZonOnder = tlX_center + (int)(distZonOnder * pixelsPerUur);
@@ -493,32 +501,36 @@ void updateDataPaneelVandaag()
             // Wassend: schaduw schuift van rechts naar links
             int offset = map(phase * 1000, 0, 500, r * 2, 0);
             datSpr1.fillCircle(xMaanOp + offset, tlY + 1, r, shadowCol);
+            datSpr1.drawFastHLine(xMaanOp + offset - r, tlY + 1, (int)(r * 2), lineCol); // Versterk de schaduw met een lijn
         }
         else
         {
             // Afnemend: schaduw schuift van links naar rechts
             int offset = map(phase * 1000, 500, 1000, 0, r * 2);
             datSpr1.fillCircle(xMaanOp - offset, tlY + 1, r, shadowCol);
+            datSpr1.drawFastHLine(xMaanOp - offset - r, tlY + 1, (int)(r * 2), lineCol); // Versterk de schaduw met een lijn
         }
     }
     if (xMaanOnder > 85 && xMaanOnder < 170)
     {
         // datSpr1.fillCircle(xMaanOnder, tlY + 1, 4, TFT_CYAN);
         // 1. De basis (volledige maan in goud/wit)
-        datSpr1.fillCircle(xMaanOnder, tlY + 1, r, TFT_DARKCYAN);
+        datSpr1.fillCircle(xMaanOnder, tlY, r, TFT_SILVER);
 
         // 2. De schaduw (vormt de fase)
         if (phase < 0.5)
         {
             // Wassend: schaduw schuift van rechts naar links
             int offset = map(phase * 1000, 0, 500, r * 2, 0);
-            datSpr1.fillCircle(xMaanOnder + offset, tlY + 1, r - 1, shadowCol);
+            datSpr1.fillCircle(xMaanOnder + offset, tlY + 1, r - 2, shadowCol);
+            datSpr1.drawFastHLine(xMaanOnder + offset - (r - 2), tlY + 1, (int)((r - 1) * 2), lineCol); // Versterk de schaduw met een lijn
         }
         else
         {
             // Afnemend: schaduw schuift van links naar rechts
             int offset = map(phase * 1000, 500, 1000, 0, r * 2);
-            datSpr1.fillCircle(xMaanOnder - offset, tlY + 1, r - 1, shadowCol);
+            datSpr1.fillCircle(xMaanOnder - offset, tlY + 1, r - 2, shadowCol);
+            datSpr1.drawFastHLine(xMaanOnder - offset - (r - 2), tlY + 1, (int)((r - 1) * 2), lineCol); // Versterk de schaduw met een lijn
         }
     }
 
@@ -577,6 +589,8 @@ void updateDataPaneelForecast()
         datSpr2.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
         datSpr2.drawString(datumBuf, 33, yPos + 30);
 
+        drawWeatherIcon(datSpr2, 37, yPos + 5, 40, f.icon_id, true);
+
         datSpr2.setTextDatum(TR_DATUM);
         datSpr2.setTextFont(2);
         datSpr2.setTextColor(TFT_GOLD, TFT_BLACK);
@@ -589,11 +603,33 @@ void updateDataPaneelForecast()
         datSpr2.setTextColor(TFT_SKYBLUE, TFT_BLACK);
         datSpr2.drawString(f.description, 169, yPos + 34);
 
-        drawWeatherIcon(datSpr2, 37, yPos + 5, 40, f.icon_id, true);
-
         if (i < 2)
             datSpr2.drawFastHLine(0, yPos + 49, 170, 0x2104);
     }
+}
+
+void updateDataPaneelAlert()
+{
+    datSpr3.fillSprite(TFT_BLACK);
+    datSpr3.setTextColor(TFT_WHITE, TFT_BLACK);
+    datSpr3.setTextDatum(MC_DATUM);
+    datSpr3.setTextFont(2);
+    datSpr3.drawString("ALERT!", 85, 20);
+    datSpr3.setTextFont(1);
+
+    String weatherDescription =
+        "Partly cloudy with a high chance of scattered thunderstorms in the afternoon. Winds will be moderate with gusts up to 30 km/h. /n Humidity levels will be around 60%, making it feel warmer than the actual temperature. It's advisable to carry an umbrella and stay hydrated throughout the day.";
+
+    // Set the text wrap mode to true for horizontal wrapping and false for vertical wrapping
+    datSpr3.setTextWrap(true, false);
+
+    // Print the weather description
+    datSpr3.setCursor(5, 35); // Set the cursor to (10, 20)
+    datSpr3.print(weatherDescription);
+    datSpr3.drawString(state.env.alert_message, 5, 35);
+    delay(100000); // Wait for 10 seconds
+
+
 }
 
 // --- TEKENFUNCTIE VOOR QR-CODE: Gebruikt de qrcode library om een QR-code te genereren en direct op het TFT-scherm te tekenen. ---
@@ -704,7 +740,7 @@ void drawISOAlert(int x, int y, int size, uint16_t color, bool active)
     bool isActuallyActive = active || state.env.is_alert_active;
 
     // 1. De basis driehoek (altijd zwart of achtergrond)
-    datSpr1.fillRect(x /*- (size / 2)*/ - 2, y /*- 2*/, size + 4, size + 4, TFT_BLACK ); // Groot zwart vierkant als achtergrond
+    datSpr1.fillRect(x /*- (size / 2)*/ - 2, y /*- 2*/, size + 4, size + 4, TFT_BLACK); // Groot zwart vierkant als achtergrond
     datSpr1.fillTriangle(x + size / 2, y, x, y + size, x + size, y + size, TFT_BLACK);
 
     // 2. Het gekleurde binnenvlak (Dit wordt nu 0x2104 of TFT_GREENYELLOW)
@@ -716,10 +752,10 @@ void drawISOAlert(int x, int y, int size, uint16_t color, bool active)
     // 3. Teken het '!' teken alleen als er echt een alarm is
     // if (isActuallyActive)
     // {
-        int barWidth = size / 6;
-        int barHeight = size / 2.4;
-        datSpr1.fillRoundRect(x + (size / 2) - (barWidth / 2), y + (size / 3), barWidth, barHeight, 1, TFT_BLACK);
-        datSpr1.fillCircle(x + (size / 2), 1 + y + size - (size / 4), size / 10, TFT_BLACK);
+    int barWidth = size / 6;
+    int barHeight = size / 2.4;
+    datSpr1.fillRoundRect(x + (size / 2) - (barWidth / 2), y + (size / 3), barWidth, barHeight, 1, TFT_BLACK);
+    datSpr1.fillCircle(x + (size / 2), 1 + y + size - (size / 4), size / 10, TFT_BLACK);
     // }
 }
 

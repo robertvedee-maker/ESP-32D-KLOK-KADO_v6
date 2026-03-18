@@ -23,6 +23,7 @@ void performTransition(TFT_eSprite* oldSpr, TFT_eSprite* newSpr);
 
 extern void updateDataPaneelVandaag();
 extern void updateDataPaneelForecast();
+extern void updateDataPaneelAlert();
 extern void showSetupInstructionPanel();
 
 void renderFace(int h, int m, int s);

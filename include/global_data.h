@@ -65,6 +65,7 @@ struct WeatherData
     // SPECIFIEK VOOR VANDAAG (Dag 0 uit de daily-sectie)
     struct
     {
+        char today_tomorrow_str[10] = "VANDAAG"; // Of "MORGEN", afhankelijk van het tijdstip
         char summary[128]; // De mooie zin van OWM3
         float temp_min;
         float temp_max;
@@ -112,6 +113,9 @@ struct EnvData
             return 0xFDE0; // Geel/Oranje
         return is_alert_active ? alert_active_color : icon_base_color;
     }
+
+    char alert_message[128] = "";
+
     double sunrise_local = 0.0, sunset_local = 0.0, moonrise_local = 0.0, moonset_local = 0.0;
     char sunrise_str[6] = "00:00", sunset_str[6] = "00:00";
     char current_time_str[10] = "00:00:00", current_date_str[14] = "ZO 01-01-2024";

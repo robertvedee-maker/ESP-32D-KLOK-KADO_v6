@@ -163,9 +163,11 @@ void updateBaroTrend() {
             // Bereken de trend op basis van het AFGELOPEN blok
             float diff = currentP - state.env.baro_ref_3h;
             
-            if (diff > 1.1f)       state.env.baro_trend = 1;
-            else if (diff < -1.1f) state.env.baro_trend = -1;
-            else                   state.env.baro_trend = 0;
+            if (diff >2.0f)       state.env.baro_trend = 2; // Sterk stijgend
+            else if (diff > 1.1f) state.env.baro_trend = 1; // Stijgend
+            else if (diff < -2.0f)      state.env.baro_trend = -2; // Sterk dalend
+            else if (diff < -1.1f)     state.env.baro_trend = -1; // Dalend
+            else                      state.env.baro_trend = 0; // Stabiel
 
             // Sla alles op voor de volgende 3 uur
             prefs.begin("env_data", false);

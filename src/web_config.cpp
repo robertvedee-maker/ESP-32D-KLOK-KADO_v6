@@ -125,9 +125,9 @@ void initWebServer()
         request->send(200, "text/html", html);
 
         // --- STAP 5: Debug naar S-Mon ---
-        Serial.printf("--- GEGEVENS ONTVANGEN EN OPGESLAGEN ---\n");
-        Serial.printf("SSID: %s\n", state.network.ssid.c_str());
-        Serial.printf("mDNS: %s\n", state.network.mdns.c_str());
+        Serial.printf("[Webserver] Gegevens ontvangen en opgeslagen\n");
+        Serial.printf("[Webserver] SSID: %s\n", state.network.ssid.c_str());
+        Serial.printf("[Webserver] mDNS: %s\n", state.network.mdns.c_str());
 
         state.network.pending_restart = true;
         state.network.is_setup_mode = false;
@@ -180,5 +180,5 @@ void initWebServer()
 
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
     server.begin();
-    Serial.printf("Webserver: Actief en luisterend...\n");
+    Serial.printf("[Webserver] --- Actief en luisterend ---\n");
 }

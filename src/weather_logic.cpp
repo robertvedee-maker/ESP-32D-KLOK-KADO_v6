@@ -19,7 +19,7 @@
 bool fetchWeather(bool checkOnly);
 void manageWeatherUpdates();
 void updateBaroTrend();
-void updateTickerSegments();
+// void updateTickerSegments();
 String urlEncode(String str);
 void setupWiFi();
 void disableWiFi();
@@ -233,7 +233,22 @@ bool fetchWeather(bool checkOnly)
     }
 
     // --- GEGEVENS VOOR VANDAAG (Dag 0 uit de forecast sectie) ---
-    auto today = doc["daily"][0]; // <--- Belangrijk: Index 0 is vandaag!
+
+
+    int h = timeinfo->tm_hour;
+
+    auto today = doc["daily"][0]; // Default: vandaag
+    
+    if (h >= 17 || h < 1)
+    {
+            today = doc["daily"][1]; // <--- Belangrijk: Index 1 is morgen!
+            strlcpy(state.weather.today.today_tomorrow_str, "MORGEN", sizeof(state.weather.today.today_tomorrow_str));
+    }
+    else
+    {
+            strlcpy(state.weather.today.today_tomorrow_str, "VANDAAG", sizeof(state.weather.today.today_tomorrow_str));
+    }
+    Serial.printf("[WEATHER] We updaten de '%s' data op basis van het uur (%02d)...\n", state.weather.today.today_tomorrow_str, h); 
 
     // En dan de waarden overzetten naar je state:
     strlcpy(state.weather.today.summary, today["summary"] | "--", sizeof(state.weather.today.summary));
@@ -264,7 +279,7 @@ bool fetchWeather(bool checkOnly)
     state.weather.last_update_epoch = nu;
     state.weather.data_is_fresh = true;
     saveWeatherCache();
-    updateTickerSegments();
+    // updateTickerSegments(); -- We laten de ticker zelf beslissen wanneer hij wil verversen, voor soepelheid
 
     // Sla de echte Unix-tijd op (overleeft reboots en hitte-crashes)
     prefs.begin("config", false);

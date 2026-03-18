@@ -61,7 +61,7 @@ namespace Config
     constexpr int solar_fade_minutes = 30;          // min
     constexpr int default_transition_speed = 12;    // ms
     constexpr int default_transition_type = 1;      // 0 = slide left, 1 = slide right, 2 = slide up, 3 = slide down, 4 = none
-    constexpr int distance_per_hour = 10;             // pixels per uur voor de zon- en maanbaan in het data-paneel (gebaseerd op 15 pixels per uur bij een 10 uur horizon)
+    constexpr int distance_per_hour = 14;             // pixels per uur voor de zon- en maanbaan in het data-paneel (gebaseerd op 15 pixels per uur bij een 10 uur horizon)
     constexpr long ten_min_timeout = 10 * 60 * 1000UL; // ms dat de setup-modus actief blijft zonder verbinding voordat hij automatisch afsluit
 
     // --- 5. OVERIGE INSTELLINGEN ---

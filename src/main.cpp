@@ -21,7 +21,7 @@
 #include <time.h>
 #include <WiFi.h>
 
-void updateTickerSegments();
+// void updateTickerSegments();
 void evaluateSystemSafety();
 void finalizeSetupAndShowDashboard();
 void handleTouchLadder();

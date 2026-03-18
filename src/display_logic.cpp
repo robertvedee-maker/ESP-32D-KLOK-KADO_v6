@@ -17,8 +17,6 @@
 #include <WiFi.h>
 #include <SPI.h>
 
-// Forward declaration
-void drawWebConfigQRinDataPaneel();
 
 // 1. Hardware instanties (MOETEN hier gedefinieerd worden)
 TFT_eSPI tft = TFT_eSPI();
@@ -70,7 +68,7 @@ void vulBootSegmenten()
         // We roepen je calc-functie aan met forceVariant 0
         vulEasterEggTekst(leeftijdBuf, sizeof(leeftijdBuf), gD, gM, gJ, 0);
 
-        snprintf(s.text, sizeof(s.text), "WELKOM %s! EVEN GEDULD VOOR DE WEER-UPDATE (ong. 1 min)... EEN FIJTJE: %s",
+        snprintf(s.text, sizeof(s.text), "WELKOM %s! EVEN GEDULD VOOR DE WEER-UPDATE (ong. 1 min)... EEN FIJTJE: %s   ***   ",
                  state.user.name.c_str(), leeftijdBuf);
     }
     else
@@ -125,9 +123,12 @@ void vulAlertSegmenten()
 
 void vulNormalSegmenten()
 {
+    
     TickerSegment sWeer;
     sWeer.color = state.env.ticker_color;
-    snprintf(sWeer.text, sizeof(sWeer.text), "WEER VANDAAG: %s, TEMP: MIN: %.1fC  |  MAX: %.1fC",
+
+    snprintf(sWeer.text, sizeof(sWeer.text), "WEER %s: %s, TEMP: MIN: %.1fC  |  MAX: %.1fC",
+             state.weather.today.today_tomorrow_str,
              state.weather.description.c_str(),
              state.weather.today.temp_min,
              state.weather.today.temp_max);
@@ -210,7 +211,7 @@ void vulNormalSegmenten()
             tickerSegments.push_back(sEasterEgg);
             // DE GRENDEL: Verbruik de vlag direct!
             state.display.show_easter_egg = false;
-            Serial.printf("[TICKER] Paasei toegevoegd aan de Segmenten.\n");
+            // Serial.printf("[TICKER] Paasei toegevoegd aan de Segmenten.\n");
         }
     }
 
@@ -276,7 +277,7 @@ void updateTickerSegments()
         state.display.ticker_x = tft.width(); // Reset naar 320
         oudeMode = nieuweMode;
         state.display.force_ticker_refresh = false;
-        Serial.printf("[TICKER] Wissel naar Mode: %d\n", nieuweMode);
+        // Serial.printf("[TICKER] Wissel naar Mode: %d\n", nieuweMode);
 
     }
 
@@ -289,9 +290,6 @@ void updateTickerSegments()
     case MODE_BOOT:
         vulBootSegmenten();
         break;
-    // case MODE_CONFIG:
-    //     vulConfigSegmenten();
-    //     break;
     case MODE_ALERT:
         vulAlertSegmenten();
         break;
@@ -350,7 +348,7 @@ void renderTicker()
     int berekendeBreedte = 0;
     for (auto &seg : tickerSegments)
     {
-        berekendeBreedte += seg.width + 14; // 20px spatie
+        berekendeBreedte += seg.width + 14; // xxpx spaties
     }
     state.display.total_ticker_width = berekendeBreedte;
 
@@ -384,7 +382,15 @@ void renderTicker()
         state.display.ticker_x = 0;
 
         // We verversen de segmenten (als de data in de tussentijd is bijgewerkt)
-        updateTickerSegments();
+        if (state.weather.data_is_fresh == true)
+        {
+            updateTickerSegments();
+            // struct tm timeinfo;
+            // if (getLocalTime(&timeinfo))
+            // {
+            //     Serial.printf("[TICKER] Naadloze loop, segmenten vernieuwd. Nieuwe totale breedte: %d | tijd: %02d:%02d\n", state.display.total_ticker_width, timeinfo.tm_hour, timeinfo.tm_min);
+            // }
+        }
     }
 
     // 2. DE GEFORCEERDE WISSEL (Bijv. bij Alarm of na WebConfig)
@@ -395,6 +401,11 @@ void renderTicker()
         
         // Ververs de inhoud direct met de mogelijk nieuwe data uit de WebConfig
         updateTickerSegments();
+        // struct tm timeinfo;
+        // if (getLocalTime(&timeinfo))
+        // {
+        //     Serial.printf("[TICKER] Geforceerde verversing, nieuwe totale breedte: %d | tijd: %02d:%02d\n", state.display.total_ticker_width, timeinfo.tm_hour, timeinfo.tm_min);
+        // }
         
         state.display.force_ticker_refresh = false;
         
@@ -495,12 +506,12 @@ void manageDataPanels()
         return;
     }
 
-    // 2. Check of OWM geconfigureerd is (als extra veiligheid)
-    if (state.network.owm_key.length() < 10)
-    {
-        showSetupInstructionPanel();
-        return;
-    }
+    // // 2. Check of OWM geconfigureerd is (als extra veiligheid)
+    // if (state.network.owm_key.length() < 10)
+    // {
+    //     showSetupInstructionPanel();
+    //     return;
+    // }
 
     // 3. NORMALE DEURSTUURING: Wissel tussen Vandaag en Komende Dagen
     unsigned long nu = millis();
@@ -549,6 +560,8 @@ void manageDataPanels()
         {
             updateDataPaneelVandaag();
             datSpr1.pushSprite(Config::data_x, Config::data_y);
+            // updateDataPaneelAlert();
+            // datSpr3.pushSprite(Config::data_x, Config::data_y);
         }
         else
         {

@@ -22,7 +22,7 @@
 void activateWiFiAndServer();
 void deactivateWiFiAndServer();
 void enableWiFi();
-void handleTicker();
+// void handleTicker();
 void handleWiFiEco();
 void manageServerTimeout();
 void renderTicker();
@@ -31,7 +31,7 @@ void startAccessPoint();
 void stopSetupMode();
 // void setupOTA();
 void showNetworkInfo();
-void updateTickerSegments();
+// void updateTickerSegments();
 
 void powerDownWiFi();
 
@@ -65,17 +65,17 @@ void enableWiFi()
     Serial.printf("[NET] WiFi Radio INGESCHAKELD.\n");
 }
 
-void handleTicker()
-{
-    state.display.ticker_x -= 1;
-    if (state.display.ticker_x < -state.display.total_ticker_width)
-    {
-        state.display.ticker_x = tft.width();
-        updateTickerSegments();
-    }
-    // Teken de sprite op het scherm (over de dolfijn heen!)
-    renderTicker();
-}
+// void handleTicker()
+// {
+//     state.display.ticker_x -= 1;
+//     if (state.display.ticker_x < -state.display.total_ticker_width)
+//     {
+//         state.display.ticker_x = tft.width();
+//         updateTickerSegments();
+//     }
+//     // Teken de sprite op het scherm (over de dolfijn heen!)
+//     renderTicker();
+// }
 
 void handleWiFiEco()
 {
@@ -161,10 +161,8 @@ void setupWiFi()
 
         // --- S.P.O.T. SYNC ---
         state.network.wifi_connected = true;
-        
-
         state.network.is_setup_mode = false; // Belangrijk: zet de klok-loop weer 'aan'
-        initWebServer();
+        // initWebServer(); // We starten de server pas als we zeker weten dat we verbinding hebben, en met de juiste gegevens
         // setupOTA();
     }
 
@@ -254,10 +252,7 @@ void manageServerTimeout()
     {
         if (millis() - state.network.server_start_time >= Config::ten_min_timeout) // 10 minuten
         {
-            // deactivateWiFiAndServer();
             powerDownWiFi();
-            // finalizeUIAfterSetup();
-            // state.network.is_setup_mode = false;
         }
     }
 }
