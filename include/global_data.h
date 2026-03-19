@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <vector>
+#include <LittleFS.h>
 #include "config.h" // We gebruiken Config:: voor de defaults
 
 enum SystemHealth
@@ -33,6 +34,22 @@ struct UserData
     String dob = ""; // YYYY-MM-DD
     String Leeftijd = "";
 };
+
+struct ActiveBirthday {
+    String name;
+    int d, m, j;
+    int daysLeft;
+    char gender; // 'M', 'V' of '?' als fallback
+};
+
+struct BirthdayEntry {
+    String naam;
+    int dag, maand, jaar;
+    long dagenTeGaan;
+    int nieuweLeeftijd;
+    char gender; // 'M', 'V' of '?' als fallback
+};
+
 
 struct DailyForecast
 {
@@ -170,6 +187,12 @@ struct DisplaySettings
     TickerMode current_ticker_mode = MODE_BOOT; // De huidige actieve modus
     bool force_ticker_refresh = false;          // Vlag om direct van rechts te starten
 
+    // Verjaardagskalender
+    bool show_calendar = false;
+    unsigned long calendar_show_until = 2 * 60 * 1000; // Tot wanneer de kalender getoond moet worden (2 minuten na activeren)
+    bool birthday_upcoming = false; // Huidige status of er een verjaardag binnen 5 dagen is, voor snelle checks in de klok
+    char birthday_gender = '?'; // Huidige gender van de verjaardag (? = onbekend)
+
     int ticker_x = 320;
     int total_ticker_width = 0;
     bool show_vandaag = true;
@@ -196,6 +219,7 @@ struct DisplaySettings
 struct SystemState
 {
     UserData user;
+    std::vector<ActiveBirthday> currentBirthdays;
     WeatherData weather;
     EnvData env;
     DisplaySettings display;
@@ -208,6 +232,7 @@ extern SystemState state;
 extern const char *dagNamen[];
 extern const char *maandNamen[];
 extern std::vector<TickerSegment> tickerSegments;
+extern std::vector<ActiveBirthday> currentBirthdays;
 
 // De prefix 'RTC_DATA_ATTR' zorgt dat dit in het speciale geheugen komt
 extern RTC_DATA_ATTR uint32_t lastOWMFetchTime0;

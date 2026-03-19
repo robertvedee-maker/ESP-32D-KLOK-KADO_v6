@@ -3,30 +3,36 @@
  * Weather logic: OpenWeatherMap API integratie
  */
 
-#include "weather_logic.h"
-#include "display_logic.h"
-#include "global_data.h"
-#include "helpers.h"
-#include "secret.h"
-#include <ArduinoJson.h>
-#include <HTTPClient.h>
+#include "app_actions.h"
+
+
+// #include "weather_logic.h"
+// #include "display_logic.h"
+// #include "global_data.h"
+// #include "helpers.h"
+// #include "secret.h"
+// #include <ArduinoJson.h>
+// #include <HTTPClient.h>
 // #include <WiFiClientSecure.h>
-#include <WiFi.h>
-#include <Preferences.h>
+// #include <WiFi.h>
+// #include <Preferences.h>
 #include <esp_task_wdt.h>
 
-// forward declarations
-bool fetchWeather(bool checkOnly);
-void manageWeatherUpdates();
-void updateBaroTrend();
-// void updateTickerSegments();
-String urlEncode(String str);
-void setupWiFi();
-void disableWiFi();
-// void deactivateWiFiAndServer();
-void powerDownWiFi();
 
-void manageWeatherUpdates()
+
+// // forward declarations
+// bool fetchWeather(bool checkOnly);
+// void manageWeatherUpdates();
+// void updateBaroTrend();
+// // void updateTickerSegments();
+// String urlEncode(String str);
+// // void setupWiFi();
+// void disableWiFi();
+// // void deactivateWiFiAndServer();
+// // void powerDownWiFi();
+void saveWeatherCache();
+
+void App::manageWeatherUpdates()
 {
     static unsigned long lastMinuteCheck = 0;
     unsigned long nuMillis = millis();
@@ -43,7 +49,7 @@ void manageWeatherUpdates()
 
     // 3. De Beslissing: Moeten we updaten?
     // We updaten als de vlag TRUE is (koude start) OF als fetchWeather(true) zegt dat het tijd is.
-    bool moetNuUpdaten = Config::forceFirstWeatherUpdate || fetchWeather(true);
+    bool moetNuUpdaten = Config::forceFirstWeatherUpdate || App::fetchWeather(true);
 
     if (!state.network.wifi_enabled && state.network.wifi_mode == 2)
     {
@@ -58,7 +64,7 @@ void manageWeatherUpdates()
         // WiFi check
         if (WiFi.status() != WL_CONNECTED)
         {
-            setupWiFi();
+            App::setupWiFi();
             unsigned long startWait = millis();
             while (WiFi.status() != WL_CONNECTED && millis() - startWait < 5000)
             {
@@ -71,7 +77,7 @@ void manageWeatherUpdates()
         // De Fetch
         if (WiFi.status() == WL_CONNECTED)
         {
-            if (fetchWeather(false))
+            if (App::fetchWeather(false))
             {
                 // Update gelukt: Vlag naar false, vanaf nu geldt de 30-min regel
                 Config::forceFirstWeatherUpdate = false;
@@ -87,14 +93,14 @@ void manageWeatherUpdates()
         {
             // disableWiFi();
             // deactivateWiFiAndServer();
-            powerDownWiFi();
+            App::powerDownWiFi();
         }
 
         state.network.is_updating = false;
     }
 }
 
-bool fetchWeather(bool checkOnly)
+bool App::fetchWeather(bool checkOnly)
 {
     // 1. VOORWAARDEN CHECK
     if (state.network.owm_key.length() < 10)

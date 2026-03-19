@@ -1,8 +1,16 @@
 #include "web_config.h"
 #include "global_data.h"
 #include <Preferences.h>
+#include <LittleFS.h>
+
+#include "app_actions.h"
 
 AsyncWebServer server(80);
+
+// // Forward declarations
+// String App::getBirthdaysRaw();
+// void App::saveBirthdays(String bdaysRaw);
+
 
 void initWebServer()
 {
@@ -30,6 +38,12 @@ void initWebServer()
         html += "<h2>Persoonlijke Gegevens</h2>";
         html += "Naam:<br><input type='text' name='uname' value='" + state.user.name + "'>";
         html += "Geboortedatum:<br><input type='date' name='udob' value='" + state.user.dob + "'>";
+
+        html += "<h2>Verjaardagen</h2>";
+        html += "<p style='font-size:0.8em;color:#888;'>Formaat: Naam,JJJJ-MM-DD (1 per regel)</p>";
+        // We halen de huidige lijst op uit een functie die het bestand leest
+        html += "<textarea name='bdays' rows='5' style='width:100%; background:#333; color:white;'>" + App::getBirthdaysRaw() + "</textarea>";
+
         html += "<button type='submit'>OPSLAAN & HERSTARTEN</button>";
         html += "</form></div>";
         // Extra kaartje voor de harde reset (buiten het formulier)
@@ -62,6 +76,11 @@ void initWebServer()
         String wmodeInput = request->hasParam("wmode", true) ? request->getParam("wmode", true)->value() : "0";
         String unameInput = request->hasParam("uname", true) ? request->getParam("uname", true)->value() : "";
         String udobInput = request->hasParam("udob", true) ? request->getParam("udob", true)->value() : "";
+
+        if (request->hasParam("bdays", true)) {
+            App::saveBirthdays(request->getParam("bdays", true)->value());
+        }
+
         String rawMdns = request->hasParam("mdns", true) ? request->getParam("mdns", true)->value() : "klok-kado";
 
         // --- STAP 1: mDNS Opschonen ---

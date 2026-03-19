@@ -18,12 +18,12 @@
 // klasse bestaat die TFT_eSprite heet, zonder de hele library te laden.
 class TFT_eSprite; 
 
-// De functie gebruikt nu alleen de referentie (pointers)
-void performTransition(TFT_eSprite* oldSpr, TFT_eSprite* newSpr);
+// // De functie gebruikt nu alleen de referentie (pointers)
+// void performTransition(TFT_eSprite* oldSpr, TFT_eSprite* newSpr);
 
-extern void updateDataPaneelVandaag();
-extern void updateDataPaneelForecast();
-extern void updateDataPaneelAlert();
-extern void showSetupInstructionPanel();
+// extern void updateDataPaneelVandaag();
+// extern void updateDataPaneelForecast();
+// extern void updateDataPaneelAlert();
+// extern void showSetupInstructionPanel();
 
 void renderFace(int h, int m, int s);

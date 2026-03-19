@@ -6,39 +6,41 @@
  * het starten van de setup mode (AP + captive portal),
  */
 
-#include "network_logic.h"
-#include "bitmaps/BootImages.h"
-#include "global_data.h"
+// #include "network_logic.h"
+// #include "bitmaps/BootImages.h"
+// #include "global_data.h"
 #include "helpers.h"
-#include "secret.h" // Nodig voor OTA-naam/wachtwoord en OWM data
-#include "storage_logic.h"
-#include "web_config.h"
+// #include "secret.h" // Nodig voor OTA-naam/wachtwoord en OWM data
+// #include "storage_logic.h"
+// #include "web_config.h"
 // #include <ArduinoOTA.h>
-#include <ESPmDNS.h>
-#include <Preferences.h>
-#include <WiFi.h>
+// #include <ESPmDNS.h>
+// #include <Preferences.h>
+// #include <WiFi.h>
 
-// Forward declarations
-void activateWiFiAndServer();
-void deactivateWiFiAndServer();
-void enableWiFi();
-// void handleTicker();
-void handleWiFiEco();
-void manageServerTimeout();
-void renderTicker();
-void setupWiFi();
-void startAccessPoint();
-void stopSetupMode();
-// void setupOTA();
-void showNetworkInfo();
-// void updateTickerSegments();
+// // Forward declarations
+// void activateWiFiAndServer();
+// // void deactivateWiFiAndServer();jjjjj
+// void enableWiFi();
+// // void handleTicker();
+// void handleWiFiEco();
+// void manageServerTimeout();
+// void renderTicker();
+// void setupWiFi();
+// void startAccessPoint();
+// void stopSetupMode();
+// // void setupOTA();
+// // void showNetworkInfo();
+// // void updateTickerSegments();
 
-void powerDownWiFi();
+// void powerDownWiFi();
+
+#include "app_actions.h"
 
 DNSServer dnsServer;
 const byte DNS_PORT = 53;
 
-void powerDownWiFi() {
+void App::powerDownWiFi() {
     // CHECK: Als de modus 0 is (Altijd aan), dan doen we NIETS.
     if (state.network.wifi_mode == 0) {
         state.network.is_updating = false; // Wel de vlag resetten!
@@ -58,26 +60,14 @@ void powerDownWiFi() {
     }
 }
 
-void enableWiFi()
+void App::enableWiFi()
 {
     state.network.wifi_enabled = true;
     setupWiFi(); // Onze bestaande functie die de verbinding start
     Serial.printf("[NET] WiFi Radio INGESCHAKELD.\n");
 }
 
-// void handleTicker()
-// {
-//     state.display.ticker_x -= 1;
-//     if (state.display.ticker_x < -state.display.total_ticker_width)
-//     {
-//         state.display.ticker_x = tft.width();
-//         updateTickerSegments();
-//     }
-//     // Teken de sprite op het scherm (over de dolfijn heen!)
-//     renderTicker();
-// }
-
-void handleWiFiEco()
+void App::handleWiFiEco()
 {
     if (state.network.wifi_mode != 2)
         return;
@@ -117,7 +107,7 @@ void handleWiFiEco()
 }
 
 // --- 3. DE HOOFD WIFI FUNCTIE ---
-void setupWiFi()
+void App::setupWiFi()
 {
     // We halen de verse data uit de state (geladen door initStorage)
     String ssid = state.network.ssid;
@@ -196,7 +186,7 @@ void setupWiFi()
 //     Serial.printf("OTA Ready\n");
 // }
 
-void activateWiFiAndServer()
+void App::activateWiFiAndServer()
 {
     Serial.printf("[NET] Config-modus activeren...\n");
 
@@ -243,17 +233,6 @@ void activateWiFiAndServer()
         server.begin();
         state.network.web_server_active = true;
         Serial.printf("[NET] Config-server is nu ACTIEF\n");
-    }
-}
-
-void manageServerTimeout()
-{
-    if (state.network.is_setup_mode || state.network.web_server_active)
-    {
-        if (millis() - state.network.server_start_time >= Config::ten_min_timeout) // 10 minuten
-        {
-            powerDownWiFi();
-        }
     }
 }
 

@@ -3,17 +3,20 @@
  * Leeftijd berekenen op basis van geboortedatum
  */
 
-#include "leeftijd_calc.h"
-#include "global_data.h"
-#include "helpers.h"
-#include "secret.h"
-#include <time.h>
+    // #include "leeftijd_calc.h"
+    // #include "global_data.h"
+    #include "helpers.h"
+    // #include "secret.h"
+    // #include <time.h>
 
-#include <Arduino.h>
-#include "global_data.h"
+    // #include <Arduino.h>
+    // #include "global_data.h"
+
+#include "app_actions.h"
+
 
 // 1. De rauwe rekenaar (vult de buffer)
-void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int Variant)
+void App::vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int Variant)
 {
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo))
@@ -107,19 +110,61 @@ void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, in
 }
 
 // 2. De Wrapper (haalt data uit de State en bouwt de zin)
-bool vulGepersonaliseerdFeitje(char *targetBuffer, size_t bufferSize)
-{
-    if (state.user.name.length() == 0 || state.user.dob.length() < 10)
-        return false;
-
+bool App::vulGepersonaliseerdFeitje(char *targetBuffer, size_t bufferSize) {
     int gJ, gM, gD;
-    if (sscanf(state.user.dob.c_str(), "%d-%d-%d", &gJ, &gM, &gD) != 3)
-        return false;
+    String displayNaam = "";
+    char g;
+    bool iemandGevonden = false;
+    bool isJarige = false;
 
-    char factTmp[90]; // Tijdelijke buffer voor het feitje zelf
-    vulEasterEggTekst(factTmp, sizeof(factTmp), gD, gM, gJ, -1); // Use -1 to get random variant
+    // 1. Check eerst of er VANDAAG iemand jarig is in LittleFS
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo)) {
+        int vDag = timeinfo.tm_mday;
+        int vMaand = timeinfo.tm_mon + 1;
 
-    // Bouw de uiteindelijke zin in de TickerSegment buffer
-    snprintf(targetBuffer, bufferSize, " ;P %s, %s :D ", state.user.name.c_str(), factTmp);
+        File file = LittleFS.open("/birthdays.txt", "r");
+        if (file) {
+            while (file.available()) {
+                String line = file.readStringUntil('\n');
+                line.trim();
+                int comma = line.indexOf(',');
+                // Format verwacht: Naam,JJJJ-MM-DD
+                if (comma != -1 && sscanf(line.substring(comma + 1).c_str(), "%d-%d-%d", &gJ, &gM, &gD) == 3) {
+                    if (gD == vDag && gM == vMaand) {
+                        displayNaam = line.substring(0, comma);
+                        isJarige = true;
+                        iemandGevonden = true;
+                        break; 
+                    }
+                }
+            }
+            file.close();
+        }
+    }
+
+    // 2. Geen jarige? Val terug op de vaste gebruiker (JJJJ-MM-DD)
+    if (!iemandGevonden) {
+        if (state.user.name.length() > 0 && state.user.dob.length() >= 10) {
+            if (sscanf(state.user.dob.c_str(), "%d-%d-%d", &gJ, &gM, &gD) == 3) {
+                displayNaam = state.user.name;
+                iemandGevonden = true;
+            }
+        }
+    }
+
+    if (!iemandGevonden) return false;
+
+    // 3. Het feitje genereren (gebruikt altijd gD, gM, gJ)
+    char factTmp[90];
+    vulEasterEggTekst(factTmp, sizeof(factTmp), gD, gM, gJ, -1);
+
+    // 4. Bouw de uiteindelijke zin
+    if (isJarige) {
+        snprintf(targetBuffer, bufferSize, " HOERA! %s IS JARIG! %s ", displayNaam.c_str(), factTmp);
+    } else {
+        snprintf(targetBuffer, bufferSize, " ;P %s, %s :D ", displayNaam.c_str(), factTmp);
+    }
+    
     return true;
 }

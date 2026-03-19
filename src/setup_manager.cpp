@@ -1,29 +1,37 @@
-#include "global_data.h"
-#include "config.h"
+// #include "global_data.h"
+// #include "config.h"
 #include "helpers.h"
 #include "bitmaps/BootImages.h"
 
-#include "secret.h"
-#include "web_config.h"
-#include <ESPmDNS.h>
-#include "storage_logic.h"
-#include <Preferences.h>
+// #include "secret.h"
+// #include "web_config.h"
+// #include <ESPmDNS.h>
+// #include "storage_logic.h"
+// #include <Preferences.h>
 
-#include "Setup_Manager.h"
-#include <WiFi.h>
-#include <ESPAsyncWebServer.h>
+// #include "Setup_Manager.h"
+// #include <WiFi.h>
+// #include <ESPAsyncWebServer.h>
 #include <TFT_eSPI.h>
 
-extern AsyncWebServer server;
+
+#include "app_actions.h"
+
+// extern AsyncWebServer server;
 extern void drawQRCodeOnTFT(const char *data, int x, int y, int scale);
-// void drawSetupScreen();
-void drawSetupModeActive();
-void drawSystemMonitor();
-void haltSystemWithInstruction();
-void showNetworkInfo();
-void showSetupInstructionPanel();
-void startAccessPoint();
-extern void updateDateTimeStrings();
+extern TFT_eSPI tft;
+
+
+// // void drawSetupScreen();
+// void drawSetupModeActive();
+// void drawSystemMonitor();
+// void haltSystemWithInstruction();
+// void showNetworkInfo();
+// void showSetupInstructionPanel();
+// void startAccessPoint();
+// extern void updateDateTimeStrings();
+
+
 
 // Interne variabelen (alleen zichtbaar in dit bestand)
 static unsigned long lastRedraw = 0;
@@ -34,7 +42,7 @@ const unsigned long REDRAW_INTERVAL = 1000; // 1 FPS is genoeg voor setup
 static int lastStatus = -1;
 
 // Lokale hulpfunctie voor het WiFi icoon op de monitor (Zonder Sprite overhead!)
-void drawMonitorWifi(int x, int y, int h)
+void App::drawMonitorWifi(int x, int y, int h)
 {
     int bars = 0;
     int rssi = WiFi.RSSI();
@@ -57,7 +65,7 @@ void drawMonitorWifi(int x, int y, int h)
 }
 
 // Lokale hulpfunctie voor het Alert icoon (Rechtstreeks op TFT)
-void drawMonitorAlert(int x, int y, int size, uint16_t color = state.env.icon_base_color, bool unused = false)
+void App::drawMonitorAlert(int x, int y, int size, uint16_t color = state.env.icon_base_color, bool unused = false)
 {
     // Basis driehoek
     tft.fillTriangle(x + size / 2, y, x, y + size, x + size, y + size, color);
@@ -70,7 +78,7 @@ void drawMonitorAlert(int x, int y, int size, uint16_t color = state.env.icon_ba
 
 // --- PUBLIEKE FUNCTIES ---
 
-void startAccessPoint()
+void App::startAccessPoint()
 {
     state.network.is_setup_mode = true; // De kraan gaat dicht voor de rest
 
@@ -94,7 +102,7 @@ void startAccessPoint()
     Serial.printf("Setup Mode gestart op 192.168.4.1\n");
 }
 
-void drawSetupModeActive()
+void App::drawSetupModeActive()
 {
     // Bepaal de huidige situatie
     int currentStatus;
@@ -173,7 +181,7 @@ void drawSetupModeActive()
     tft.fillCircle(200, 10, 4, state.display.touch_indicator_color);
 }
 
-void showNetworkInfo()
+void App::showNetworkInfo()
 {
     tft.fillScreen(TFT_BLACK);
     updateDisplayBrightness(Config::default_brightness);
@@ -189,24 +197,24 @@ void showNetworkInfo()
     delay(3000); // Laat deze info 3 seconden zien voordat je verder gaat
 }
 
-void showSetupInstructionPanel()  // momenteel niet gebruikt, de OWM lat lon worden in de setup geinjecteerd vanuit Preferences.h
-{
-    datSpr1.fillSprite(TFT_BLACK);
-    datSpr1.setTextColor(TFT_GOLD);
-    datSpr1.setTextDatum(MC_DATUM); // Midden-gecentreerd
-    datSpr1.drawString("WEER SETUP NODIG", datSpr1.width() / 2, 20, 2);
-    datSpr1.setTextColor(TFT_WHITE);
-    datSpr1.drawString("Ga naar:", datSpr1.width() / 2, 50, 2);
-    datSpr1.setTextColor(TFT_SKYBLUE);
-    datSpr1.drawString(WiFi.localIP().toString(), datSpr1.width() / 2, 75, 4);
-    datSpr1.setTextColor(TFT_WHITE);
-    datSpr1.drawString("en voer je API key in", datSpr1.width() / 2, 110, 2);
-    datSpr1.pushSprite(Config::data_x, Config::data_y);
-    delay(100); // Korte pauze om te voorkomen dat dit te snel hertekent
-}
+// void App::showSetupInstructionPanel()  // momenteel niet gebruikt, de OWM lat lon worden in de setup geinjecteerd vanuit Preferences.h
+// {
+//     datSpr1.fillSprite(TFT_BLACK);
+//     datSpr1.setTextColor(TFT_GOLD);
+//     datSpr1.setTextDatum(MC_DATUM); // Midden-gecentreerd
+//     datSpr1.drawString("WEER SETUP NODIG", datSpr1.width() / 2, 20, 2);
+//     datSpr1.setTextColor(TFT_WHITE);
+//     datSpr1.drawString("Ga naar:", datSpr1.width() / 2, 50, 2);
+//     datSpr1.setTextColor(TFT_SKYBLUE);
+//     datSpr1.drawString(WiFi.localIP().toString(), datSpr1.width() / 2, 75, 4);
+//     datSpr1.setTextColor(TFT_WHITE);
+//     datSpr1.drawString("en voer je API key in", datSpr1.width() / 2, 110, 2);
+//     datSpr1.pushSprite(Config::data_x, Config::data_y);
+//     delay(100); // Korte pauze om te voorkomen dat dit te snel hertekent
+// }
 
 
-void drawSystemMonitor()
+void App::drawSystemMonitor()
 {
     // 1. EENMALIGE BASIS (Het kader en de labels)
     if (!state.display.show_sm_bg_drawn)
@@ -305,7 +313,7 @@ void drawSystemMonitor()
     tft.drawString(uptimeStr, 15, 150);
 }
 
-void haltSystemWithInstruction()
+void App::haltSystemWithInstruction()
 {
     // 1. Scherm op zwart en kader tekenen
     tft.fillScreen(TFT_BLACK);
@@ -334,13 +342,13 @@ void haltSystemWithInstruction()
     }
 }
 
-void stopSetupMode()
+void App::stopSetupMode()
 {
     bool hasWifi = (state.network.ssid.length() > 5); // Check of er echt iets in staat
 
     if (!hasWifi && state.network.is_setup_mode)
     {
-        haltSystemWithInstruction();
+        App::haltSystemWithInstruction();
     }
     else
     {

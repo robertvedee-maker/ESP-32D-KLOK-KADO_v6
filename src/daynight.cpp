@@ -3,20 +3,21 @@
  * Day/Night and Brightness Management
  */
 
-#include "daynight.h"
-#include "global_data.h"
-#include "secret.h"
+#include "app_actions.h"
+// #include "daynight.h"
+// #include "global_data.h"
+// #include "secret.h"
 // #include <SolarCalculator.h>
 
-// Forward declaration
-void manageBrightness();
-void manageTimeFunctions();
-void updateDisplayBrightness(int pwm);
+// // Forward declaration
+// void App::manageBrightness();
+// void App::activateWiFiAndServer();
+// void App::updateDisplayBrightness(int pwm);
 
 static float lastSunrise = -1.0; // Voor debuggen: onthoud de laatste sunrise tijd om te zien wanneer deze verandert
 
 //      --- HELDERHEID EN ZON-LOGICA: Beheer van de automatische aanpassing van de helderheid op basis van tijd en veiligheid ---
-void updateDateTimeStrings() // Geen parameters nodig, we halen het zelf op
+void App::updateDateTimeStrings() // Geen parameters nodig, we halen het zelf op
 {
     time_t now;
     struct tm timeinfo;
@@ -36,7 +37,7 @@ void updateDateTimeStrings() // Geen parameters nodig, we halen het zelf op
 }
 
 //      --- HOOFDLOGICA VOOR HET BEHEREN VAN DE TIJD EN HELDERHEID (Zon-Logica + Veiligheids-override) ---
-void manageTimeFunctions()
+void App::manageTimeFunctions()
 {
 
     // Helper function to convert epoch time to decimal hours
@@ -91,7 +92,7 @@ void manageTimeFunctions()
 }
 
 //      --- HOOFDFUNCTIE VOOR HET BEHEREN VAN DE HELDERHEID OP BASIS VAN ZON-LOGICA EN VEILIGHEIDS-OVERRIDE ---
-void manageBrightness()
+void App::manageBrightness()
 {
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo))

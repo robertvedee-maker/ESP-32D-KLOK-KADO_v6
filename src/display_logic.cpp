@@ -6,17 +6,18 @@
 #include "clasic_clock.h"
 #include "config.h"
 
-#include "global_data.h"
-#include "helpers.h"
-#include "leeftijd_calc.h" // Voor het eitje
-#include "secret.h"        // Voor de namen/bday
-#include "weather_logic.h" // Voor de forecast data
+// #include "global_data.h"
+// #include "helpers.h"
+// #include "leeftijd_calc.h" // Voor het eitje
+// #include "secret.h"        // Voor de namen/bday
+// #include "weather_logic.h" // Voor de forecast data
 
-#include <Arduino.h>
-#include <TFT_eSPI.h>
-#include <WiFi.h>
-#include <SPI.h>
+#include "app_actions.h"
 
+// #include <Arduino.h>
+// #include <TFT_eSPI.h>
+// #include <WiFi.h>
+// #include <SPI.h>
 
 // 1. Hardware instanties (MOETEN hier gedefinieerd worden)
 TFT_eSPI tft = TFT_eSPI();
@@ -28,25 +29,37 @@ TFT_eSprite tckSpr = TFT_eSprite(&tft);
 
 std::vector<TickerSegment> tickerSegments;
 
-void addSegment(String t, uint16_t c);
-void makeUpperCase(char *str);
-void manageDataPanels();
-void manageEasterEggTimer();
-void manageServerTimeout();
-void performTransition(TFT_eSprite *oldSpr, TFT_eSprite *newSpr);
-void manageStatusLed();
-void renderTicker();
-void updateClock();
-void updateTickerSegments();
-void vulAlertSegmenten();
-void vulBootSegmenten();
-void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant = -1);
-bool vulGepersonaliseerdFeitje(char *buffer, size_t bufferSize);
-void vulNormalSegmenten();
 
-int berekenMinutenTotUpdate();
 
-void makeUpperCase(char *str)
+// void addSegment(String t, uint16_t c);
+// void makeUpperCase(char *str);
+
+// void manageDataPanels();
+// void manageEasterEggTimer();
+// void manageServerTimeout();
+// void manageStatusLed();
+
+// void performTransition(TFT_eSprite *oldSpr, TFT_eSprite *newSpr);
+
+// void renderTicker();
+
+// void updateClock();
+// void updateBirthdayList();
+// void updateTickerSegments();
+
+// extern void updateDataPaneelVandaag();
+// extern void updateDataPaneelForecast();
+
+// void vulAlertSegmenten();
+// void vulBootSegmenten();
+// void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant = -1);
+// bool vulGepersonaliseerdFeitje(char *buffer, size_t bufferSize);
+// void vulNormalSegmenten();
+// void drawVerjaardagsKalender(TFT_eSprite &sprite);
+
+// int berekenMinutenTotUpdate();
+
+void App::makeUpperCase(char *str)
 {
     for (int i = 0; str[i]; i++)
     {
@@ -55,7 +68,7 @@ void makeUpperCase(char *str)
 }
 
 //          --- LOGICA VOOR HET VULLEN VAN DE TICKER-SEGMENTEN (BOOT, ALERT, NORMAL) ---
-void vulBootSegmenten()
+void App::vulBootSegmenten()
 {
     TickerSegment s;
     s.color = TFT_YELLOW;
@@ -64,9 +77,9 @@ void vulBootSegmenten()
     int gJ, gM, gD;
     if (sscanf(state.user.dob.c_str(), "%d-%d-%d", &gJ, &gM, &gD) == 3)
     {
-        char leeftijdBuf[90];
+        char leeftijdBuf[128];
         // We roepen je calc-functie aan met forceVariant 0
-        vulEasterEggTekst(leeftijdBuf, sizeof(leeftijdBuf), gD, gM, gJ, 0);
+        App::vulEasterEggTekst(leeftijdBuf, sizeof(leeftijdBuf), gD, gM, gJ, 0);
 
         snprintf(s.text, sizeof(s.text), "WELKOM %s! EVEN GEDULD VOOR DE WEER-UPDATE (ong. 1 min)... EEN FIJTJE: %s   ***   ",
                  state.user.name.c_str(), leeftijdBuf);
@@ -82,7 +95,7 @@ void vulBootSegmenten()
     tickerSegments.push_back(s);
 }
 
-void vulAlertSegmenten()
+void App::vulAlertSegmenten()
 {
     // PRIORITEIT: Als force_alert actief is EN er is tekst, toon dan ALLEEN het alarm
     if (state.weather.alert_text.length() > 0)
@@ -121,9 +134,9 @@ void vulAlertSegmenten()
     }
 }
 
-void vulNormalSegmenten()
+void App::vulNormalSegmenten()
 {
-    
+
     TickerSegment sWeer;
     sWeer.color = state.env.ticker_color;
 
@@ -181,30 +194,30 @@ void vulNormalSegmenten()
     sZicht.width = tckSpr.textWidth(sZicht.text);
     tickerSegments.push_back(sZicht);
 
-    TickerSegment sWind;
-    sWind.color = state.env.ticker_color;
-    float speedMs = state.weather.wind_speed / 0.27778f;
-    snprintf(sWind.text, sizeof(sWind.text), "| WIND: %.1f m/s (%s)",
-             speedMs,
-             getWindRoos(state.weather.wind_deg).c_str());
-    sWind.width = tckSpr.textWidth(sWind.text);
-    tickerSegments.push_back(sWind);
+    // TickerSegment sWind;
+    // sWind.color = state.env.ticker_color;
+    // float speedMs = state.weather.wind_speed / 0.27778f;
+    // snprintf(sWind.text, sizeof(sWind.text), "| WIND: %.1f m/s (%s)",
+    //          speedMs,
+    //          getWindRoos(state.weather.wind_deg).c_str());
+    // sWind.width = tckSpr.textWidth(sWind.text);
+    // tickerSegments.push_back(sWind);
 
-    float gustMs = state.weather.wind_gust / 0.27778f;
-    if (gustMs > speedMs + 1.5f)
-    {
-        TickerSegment sGust;
-        sGust.color = state.env.ticker_color;
-        snprintf(sGust.text, sizeof(sGust.text), "| WINDVLAGEN: %.1f m/s", gustMs);
-        sGust.width = tckSpr.textWidth(sGust.text);
-        tickerSegments.push_back(sGust);
-    }
+    // float gustMs = state.weather.wind_gust / 0.27778f;
+    // if (gustMs > speedMs + 1.5f)
+    // {
+    //     TickerSegment sGust;
+    //     sGust.color = state.env.ticker_color;
+    //     snprintf(sGust.text, sizeof(sGust.text), "| WINDVLAGEN: %.1f m/s", gustMs);
+    //     sGust.width = tckSpr.textWidth(sGust.text);
+    //     tickerSegments.push_back(sGust);
+    // }
 
     // --- SEGMENT 3: PAASEI (De Verrassing) ---
     if (state.display.show_easter_egg)
     {
         TickerSegment sEasterEgg;
-        if (vulGepersonaliseerdFeitje(sEasterEgg.text, sizeof(sEasterEgg.text)))
+        if (App::vulGepersonaliseerdFeitje(sEasterEgg.text, sizeof(sEasterEgg.text)))
         {
             sEasterEgg.color = TFT_YELLOW;
             sEasterEgg.width = tckSpr.textWidth(sEasterEgg.text);
@@ -224,7 +237,7 @@ void vulNormalSegmenten()
 }
 
 // Helper om segmenten toe te voegen aan de state
-void addSegment(String t, uint16_t c)
+void App::addSegment(String t, uint16_t c)
 {
     TickerSegment seg; // 1. Maak een leeg object
 
@@ -240,7 +253,7 @@ void addSegment(String t, uint16_t c)
     state.ticker_segments.push_back(seg);
 }
 
-void updateTickerSegments()
+void App::updateTickerSegments()
 {
     static TickerMode oudeMode = MODE_BOOT;
 
@@ -278,7 +291,6 @@ void updateTickerSegments()
         oudeMode = nieuweMode;
         state.display.force_ticker_refresh = false;
         // Serial.printf("[TICKER] Wissel naar Mode: %d\n", nieuweMode);
-
     }
 
     // 4. DE SCHOONMAAK (Cruciaal: Eerst alles leegmaken!)
@@ -288,13 +300,13 @@ void updateTickerSegments()
     switch (nieuweMode)
     {
     case MODE_BOOT:
-        vulBootSegmenten();
+        App::vulBootSegmenten();
         break;
     case MODE_ALERT:
-        vulAlertSegmenten();
+        App::vulAlertSegmenten();
         break;
     case MODE_NORMAL:
-        vulNormalSegmenten();
+        App::vulNormalSegmenten();
         break;
     }
 
@@ -309,34 +321,8 @@ void updateTickerSegments()
     // Serial.printf("[TICKER] Totaal segmenten: %d, Totale breedte: %d\n", (int)tickerSegments.size(), nieuweBreedte);
 }
 
-//          --- LOGICA VOOR HET BEHEREN VAN HET PAASEI-TIMER EN DE GEKOPPELEDE TEKST ---
-void manageEasterEggTimer()
-{
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo))
-        return;
-
-    int huidigeMinuutInDag = (timeinfo.tm_hour * 60) + timeinfo.tm_min;
-
-    // 1. KIEZEN VAN EEN NIEUW MOMENT
-    if (state.env.next_easter_egg_minute == -1)
-    {
-        int interval = random(15, 120); // Willekeurig interval tussen 15 en 120 minuten
-        state.env.next_easter_egg_minute = (huidigeMinuutInDag + interval) % 1440;
-        // Serial.printf(F("[EASTER-EGG] Volgende over % d min (omstreeks minuut % d)\n"), interval, state.env.next_easter_egg_minute);
-    }
-
-    // 2. IS HET TIJD? (De Grendel)
-    if (huidigeMinuutInDag == state.env.next_easter_egg_minute)
-    {
-        state.display.show_easter_egg = true;
-        state.env.next_easter_egg_minute = -1; // CRUCIAAL: Zet hem direct op -1 zodat hij deze minuut NIET nog 1000x checkt!
-        // Serial.printf(F("[EASTER-EGG] Vlag omhoog en timer gereset voor de volgende ronde.\n"));
-    }
-}
-
 //          --- LOGICA VOOR HET RENDEREN EN ANIMEREN VAN DE TICKER ---
-void renderTicker()
+void App::renderTicker()
 {
     // 1. VOORBEREIDING
     tckSpr.fillSprite(TFT_BLACK);
@@ -384,7 +370,7 @@ void renderTicker()
         // We verversen de segmenten (als de data in de tussentijd is bijgewerkt)
         if (state.weather.data_is_fresh == true)
         {
-            updateTickerSegments();
+            App::updateTickerSegments();
             // struct tm timeinfo;
             // if (getLocalTime(&timeinfo))
             // {
@@ -397,25 +383,25 @@ void renderTicker()
     if (state.display.force_ticker_refresh)
     {
         // Zet de ticker weer helemaal rechts buiten beeld voor een frisse start
-        state.display.ticker_x = tft.width(); 
-        
+        state.display.ticker_x = tft.width();
+
         // Ververs de inhoud direct met de mogelijk nieuwe data uit de WebConfig
-        updateTickerSegments();
+        App::updateTickerSegments();
         // struct tm timeinfo;
         // if (getLocalTime(&timeinfo))
         // {
         //     Serial.printf("[TICKER] Geforceerde verversing, nieuwe totale breedte: %d | tijd: %02d:%02d\n", state.display.total_ticker_width, timeinfo.tm_hour, timeinfo.tm_min);
         // }
-        
+
         state.display.force_ticker_refresh = false;
-        
+
         // Optioneel: Forceer ook een update van de andere panelen
-        // manageDataPanels(); 
+        // manageDataPanels();
     }
 }
 
 //          --- PANEEL LOGIC: Beheer van de data-panelen en de overgangen daartussen ---
-void performTransition(TFT_eSprite *oldSpr, TFT_eSprite *newSpr)
+void App::performTransition(TFT_eSprite *oldSpr, TFT_eSprite *newSpr)
 {
 
     if (oldSpr == nullptr || newSpr == nullptr)
@@ -471,7 +457,7 @@ void performTransition(TFT_eSprite *oldSpr, TFT_eSprite *newSpr)
         // (of hetzelfde tempo als de 'speed' van de wissel)
         state.display.ticker_x -= 1;
 
-        renderTicker();
+        App::renderTicker();
         updateClock();
         tft.setViewport(x, y, w, h); // Terug naar het 'hekje' voor de volgende frame
 
@@ -484,14 +470,21 @@ void performTransition(TFT_eSprite *oldSpr, TFT_eSprite *newSpr)
 }
 
 //          --- HOOFDFUNCTIE: Beheer van de data-panelen en de wissel daartussen ---
-void manageDataPanels()
+void App::manageDataPanels()
 {
     // SPoT-Check: Als we in een andere modus zitten, doen we NIETS
     if (state.network.is_setup_mode || state.network.web_server_active || state.display.show_system_monitor)
     {
-        return; 
+        return;
     }
 
+    if (state.display.show_calendar)
+    {
+        // We zitten in de verjaardagskalender modus: Toon deze zonder gedoe
+        App::drawVerjaardagsKalender(datSpr1);
+        datSpr1.pushSprite(Config::data_x, Config::data_y);
+        return;
+    }
 
     // 1. Check of we überhaupt al een succesvolle update hebben gehad
     if (!state.weather.data_is_fresh)
@@ -534,7 +527,7 @@ void manageDataPanels()
             // STAP B: Korte pauze (10-20ms) zodat de ESP32 de sprite-buffer kan afsluiten
             delay(10);
 
-            performTransition(&datSpr1, &datSpr2);
+            App::performTransition(&datSpr1, &datSpr2);
             state.display.show_vandaag = false;
         }
         else
@@ -545,7 +538,7 @@ void manageDataPanels()
             // STAP B: Korte pauze (10-20ms) zodat de ESP32 de sprite-buffer kan afsluiten
             delay(10);
 
-            performTransition(&datSpr2, &datSpr1);
+            App::performTransition(&datSpr2, &datSpr1);
             state.display.show_vandaag = true;
         }
 

@@ -4,12 +4,16 @@
  */
 
 #include "clasic_clock.h"
-#include "daynight.h"
-#include "env_sensors.h"
-#include "global_data.h"
-#include "helpers.h"
-#include "secret.h"
-#include <TFT_eSPI.h>
+#include "app_actions.h"
+// #include "daynight.h"
+// #include "env_sensors.h"
+// #include "global_data.h"
+// #include "helpers.h"
+// #include "secret.h"
+// #include <TFT_eSPI.h>
+
+// Forward declaration
+void drawPartyPopper(TFT_eSprite& spr, int x, int y, char gender);
 
 extern TFT_eSPI tft; // Verwijs naar de tft in helpers.cpp
 extern TFT_eSprite clkSpr; // Verwijs naar de sprite in helpers.cpp
@@ -84,6 +88,10 @@ void renderFace(int h, int m, int s)
     char pBuf[16];
     snprintf(pBuf, sizeof(pBuf), "%.0f hPa", state.env.press_local);
     clkSpr.drawString(pBuf, CLOCK_R, 95);
+
+    if (state.display.birthday_upcoming) {
+        App::drawPartyPopper(clkSpr, 123, 130, state.display.birthday_gender);
+    }
 
     // 6. Teken de wijzers
     float xp, yp;

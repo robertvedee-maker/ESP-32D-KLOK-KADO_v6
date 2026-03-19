@@ -5,35 +5,46 @@
  * We hebben ervoor gekozen om deze functies in een aparte file te zetten om de code beter te organiseren en de main loop overzichtelijk te houden.
  */
 
-#include "config.h"        // Voor pinnen en constanten
-#include "daynight.h"      // Voor tijd en helderheid
-#include "display_logic.h" // Voor ticker en panelen
-#include "env_sensors.h"   // Voor BME/AHT sensoren
-#include "global_data.h"   // Voor toegang tot 'state'
-#include "helpers.h"       // Voor setupDisplay, updateClock, etc.
-#include "network_logic.h" // Voor WiFi en OTA setup
-#include "secret.h"        // Voor WiFi credentials
-#include "storage_logic.h" // Voor NVS opslag
-#include "weather_logic.h" // Voor OWM data
-#include <Arduino.h>
-// #include <ArduinoOTA.h>
-#include <Preferences.h>
-#include <time.h>
-#include <WiFi.h>
+#include "app_actions.h"
 
-// void updateTickerSegments();
-void evaluateSystemSafety();
-void finalizeSetupAndShowDashboard();
-void handleTouchLadder();
-void loop();
-void manageDataPanels();
-void manageEasterEggTimer();
-void manageStatusLed();
-void renderTicker();
-void setup();
-void showSetupInstructionPanel();
-void drawSystemMonitor();
-void updateBaroTrend();
+// #include "config.h"        // Voor pinnen en constanten
+// #include "daynight.h"      // Voor tijd en helderheid
+// #include "display_logic.h" // Voor ticker en panelen
+// #include "env_sensors.h"   // Voor BME/AHT sensoren
+// #include "global_data.h"   // Voor toegang tot 'state'
+#include "helpers.h"       // Voor setupDisplay, updateClock, etc.
+// #include "network_logic.h" // Voor WiFi en OTA setup
+// #include "secret.h"        // Voor WiFi credentials
+#include "storage_logic.h" // Voor NVS opslag
+// #include "weather_logic.h" // Voor OWM data
+// #include <Arduino.h>
+// #include <ArduinoOTA.h>
+// #include <Preferences.h>
+// #include <time.h>
+// #include <WiFi.h>
+// #include <LittleFS.h>
+// #include <TFT_eSPI.h>
+
+class TFT_eSprite; 
+extern TFT_eSPI tft;
+
+
+// // void updateTickerSegments();
+// void evaluateSystemSafety();
+// void finalizeSetupAndShowDashboard();
+// void handleTouchLadder();
+// void loop();
+// void manageDataPanels();
+// void manageEasterEggTimer();
+// void manageServerTimeout();
+// void manageStatusLed();
+// void renderTicker();
+// void setup();
+// void showSetupInstructionPanel();
+// // void drawSystemMonitor();
+// void updateBaroTrend();
+// void updateBirthdayAlertState();
+
 
 static uint32_t lastLoggedStartTime = 0;
 
@@ -78,7 +89,7 @@ void setup()
     // --- EINDE INJECTIE ---
 
     // DISPLAY START
-    setupDisplay();
+    App::setupDisplay();
 
     // 2. Zet de stroom erop (Buck aan)
     digitalWrite(Config::pin_buck_enable, LOW);
@@ -100,18 +111,18 @@ void setup()
     initStorage();
 
     // SENSOR START
-    if (setupSensors())
+    if (App::setupSensors())
     {
-        handleSensors(); // Doe direct de eerste meting
+        App::handleSensors(); // Doe direct de eerste meting
     }
 
     // WiFi Setup
-    setupWiFi();
-    showNetworkInfo(); // Laat het IP-adres kort op het scherm zien
+    App::setupWiFi();
+    App::showNetworkInfo(); // Laat het IP-adres kort op het scherm zien
 
     // Tijd configureren (NTP)
     configTzTime(SECRET_TZ_INFO, SECRET_NTP_SERVER);
-    manageTimeFunctions(); // Bepaalt zon-tijden en vult state.env
+    App::manageTimeFunctions(); // Bepaalt zon-tijden en vult state.env
 
     if (prefs.begin("config", true))
     { // open in read-only
@@ -126,13 +137,27 @@ void setup()
         Serial.printf("[DEBUG] FOUT: Kon Preferences 'config' niet openen!\n");
     }
 
+    if (!LittleFS.begin(true))
+    { // 'true' formatteert automatisch als mounten mislukt
+        Serial.println("LittleFS Mount Failed");
+    }
+    else
+    {
+        Serial.println("LittleFS Gemount!");
+        // Check vrije ruimte (puur voor debug)
+        Serial.printf("Totaal: %u KB, Gebruikt: %u KB\n",
+                      LittleFS.totalBytes() / 1024,
+                      LittleFS.usedBytes() / 1024);
+    }
+
     time_t now = time(nullptr);
     struct tm *timeinfo = localtime(&now);
     Serial.printf("--- Systeem Start Voltooid --- | tijd: %02d:%02d\n", timeinfo->tm_hour, timeinfo->tm_min);
 
     // HELDERHEID TOEPASSEN (Hardware-fade naar de geladen waarde)
     // updateDisplayBrightness(state.display.day_brightness);
-    finalizeSetupAndShowDashboard();
+    App::finalizeSetupAndShowDashboard();
+    App::updateBirthdayAlertState();
 
     // // Preferences prefs;
     // prefs.begin("config", true); // 'true' betekent read-only
@@ -151,25 +176,32 @@ static unsigned long lastSetupRedraw = 0;
 void loop()
 {
     // manageTimeFunctions();
-    evaluateSystemSafety();
+    App::evaluateSystemSafety();
 
     // Herstart check
     if (state.network.pending_restart)
     {
         Serial.printf("[SYSTEM] Licht uit, herstarten...\n");
-        tft.fillScreen(TFT_BLACK);                      // 1. Maak het scherm zwart (softwarematig)
-        digitalWrite(Config::pin_buck_enable, HIGH);    // 2. Trek de stekker uit de Buck (hardwarematig)
-        delay(100);                                     // 3. Korte pauze om de elco's van de Buck leeg te laten lopen
-        ESP.restart();                                  // 4. De echte herstart
+        tft.fillScreen(TFT_BLACK);                   // 1. Maak het scherm zwart (softwarematig)
+        digitalWrite(Config::pin_buck_enable, HIGH); // 2. Trek de stekker uit de Buck (hardwarematig)
+        delay(100);                                  // 3. Korte pauze om de elco's van de Buck leeg te laten lopen
+        ESP.restart();                               // 4. De echte herstart
+
     }
 
     // 1. TOUCH & LED (Altijd eerst voor maximale responsiviteit)
     static unsigned long lastTouchTick = 0;
-    if (millis() - lastTouchTick > 30)
+    if (millis() - lastTouchTick > 50)
     {
-        handleTouchLadder();
-        manageStatusLed();
+        App::handleTouchLadder();
+        App::manageStatusLed();
         lastTouchTick = millis();
+    }
+
+    // Check of we nog in de verjaardagskalender modus zitten, en zo ja, of deze al weer uitgezet moet worden
+    if (state.display.show_calendar && millis() > state.display.calendar_show_until) {
+    state.display.show_calendar = false;
+    tft.fillScreen(TFT_BLACK); // Forceer refresh naar weer-layout
     }
 
     // 2. SETUP / BEHEER MODUS (De "Blokkerende" Mode)
@@ -179,12 +211,12 @@ void loop()
         // Ververs het scherm 1x per seconde voor de aftelbalk en status
         if (millis() - lastSetupRedraw > 1000)
         {
-            drawSetupModeActive();
+            App::drawSetupModeActive();
             lastSetupRedraw = millis();
         }
 
         // Check of de 10 minuten om zijn
-        manageServerTimeout();
+        App::manageServerTimeout();
 
         yield();
         if (state.network.server_start_time != lastLoggedStartTime)
@@ -201,7 +233,7 @@ void loop()
         static unsigned long lastMonitorUpdate = 0;
         if (millis() - lastMonitorUpdate > 500)
         {
-            drawSystemMonitor();
+            App::drawSystemMonitor();
             lastMonitorUpdate = millis();
         }
         yield();
@@ -214,27 +246,33 @@ void loop()
     static unsigned long lastTenSecondTick = 0;
     if (millis() - lastTenSecondTick > 10000)
     {
-        handleSensors();
-        handleWiFiEco();
-        manageBrightness();
-        manageTimeFunctions();
-        manageEasterEggTimer();
-        updateBaroTrend();
+        App::handleSensors();
+        App::handleWiFiEco();
+        App::manageBrightness();
+        App::manageTimeFunctions();
+        App::manageEasterEggTimer();
+        App::updateBaroTrend();
         lastTenSecondTick = millis();
     }
 
+    static unsigned long lastBirthdayCheck = 0;
+    if (millis() - lastBirthdayCheck > 60 * 60 * 1000) 
+    {// Check elke uur op verjaardagen, dit is ruim genoeg gezien we ook een 'dichtbij' vlag hebben die elke 10 sec wordt geüpdatet
+        App::updateBirthdayAlertState();
+        lastBirthdayCheck = millis();
+    }
+
+
     // --- BLOK 6: VISUEEL (KLOK, TICKER & ANIMATIE) ---
-    // Alleen uitvoeren als we NIET in setup of beheer-modus zitten
-    // Klok update (elke sec)
     static time_t last_now = 0;
     time_t now = time(nullptr);
     if (now != last_now)
-    {
+    {// Klok update (elke sec)
         last_now = now;
-        updateClock();
+        App::updateClock();
     }
 
-    renderTicker();
-    manageDataPanels();
-    manageWeatherUpdates();
+    App::renderTicker();
+    App::manageDataPanels();
+    App::manageWeatherUpdates();
 }

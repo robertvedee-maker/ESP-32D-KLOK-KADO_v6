@@ -3,16 +3,18 @@
  * Environmental sensors: Temperatuur, Luchtvochtigheid, Druk
  */
 
-#include "env_sensors.h"
-#include "global_data.h"
-#include "helpers.h"
-#include <Adafruit_AHTX0.h>
-#include <Adafruit_BMP280.h>
-#include <Wire.h>
-#include <WiFi.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
-#include <Preferences.h>
+#include "app_actions.h"
+
+// #include "env_sensors.h"
+// #include "global_data.h"
+// #include "helpers.h"
+// #include <Adafruit_AHTX0.h>
+// #include <Adafruit_BMP280.h>
+// #include <Wire.h>
+// #include <WiFi.h>
+// #include <OneWire.h>
+// #include <DallasTemperature.h>
+// #include <Preferences.h>
 
 // Instanties
 Adafruit_AHTX0 aht;
@@ -21,7 +23,7 @@ OneWire oneWire(Config::pin_OneWire); // GPIO32 voor DS18B20
 DallasTemperature sensors(&oneWire);
 
 // --- Sensor Setup en Handling ---
-bool setupSensors()
+bool App::setupSensors()
 {
     // 1. Start I2C op de juiste pinnen
     if (!Wire.begin(I2C_SDA, I2C_SCL))
@@ -80,7 +82,7 @@ bool setupSensors()
 }
 
 // --- Sensor Data Handling (elke 10 sec) ---
-void handleSensors()
+void App::handleSensors()
 {
    // 0. DS18B20: Interne Behuizing Temperatuur (Asynchroon)
     if (state.env.ds18b20_ok)
@@ -138,7 +140,7 @@ void handleSensors()
 }
 
 //  --- BAROMETER TREND LOGICA ---
-void updateBaroTrend() {
+void App::updateBaroTrend() {
     Preferences prefs; // Lokale instantie van Preferences
     
     float currentP = (state.env.press_local > 800.0f) ? state.env.press_local : state.env.pressure;

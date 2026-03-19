@@ -3,48 +3,76 @@
  */
 
 #include "helpers.h"
-#include "config.h" // Toegevoegd voor Config:: pinnen en waarden
+// #include "config.h" // Toegevoegd voor Config:: pinnen en waarden
 #include "display_logic.h"
-#include "driver/ledc.h" // Voor PWM controle van de backlight
-#include "env_sensors.h"
-#include "global_data.h"
-#include "daynight.h"
-#include "leeftijd_calc.h"
-#include "secret.h"
-#include "bitmaps/weatherIcons40.h"
-#include "bitmaps/weatherIcons68.h"
-#include "weather_logic.h"
-#include <WiFi.h>
-#include "network_logic.h"
-#include "web_config.h"
-#include <qrcode.h>
+// #include "driver/ledc.h" // Voor PWM controle van de backlight
+// #include "env_sensors.h"
+// #include "global_data.h"
+// #include "daynight.h"
+// #include "leeftijd_calc.h"
+// #include "secret.h"
+// #include "bitmaps/weatherIcons40.h"
+// #include "bitmaps/weatherIcons68.h"
+
+#include "app_actions.h"
+
+// #include "weather_logic.h"
+// #include <WiFi.h>
+// #include "network_logic.h"
+// #include "web_config.h"
+// #include <qrcode.h>
+// #include <algorithm>
+// #include <time.h>
 
 // --- HULPFUNCTIES: Kleine functies die in meerdere files worden gebruikt, zoals het omzetten van data naar tekst of symbolen, of het tekenen van veelgebruikte elementen op het scherm. ---
-void addTickerSegment(String txt, uint16_t col);
-void drawQRCodeOnTFT(const char *data, int x, int y, int scale);
-void drawWeatherIcon(TFT_eSprite &spr, int x, int y, int size, int iconId, bool isDay);
-void drawISOAlert(int x, int y, int size, uint16_t color, bool active);
-void drawWifiIndicator(int x, int y, int h);
-void evaluateSystemSafety();
-void finalizeSetupAndShowDashboard();
-void finalizeUIAfterSetup();
-void handleHardware();
-void handleTouchLadder();
-void manageDataPanels();
-void manageStatusLed();
-void manageTimeFunctions();
-void powerDownWiFi();
-void setupDisplay();
-void updateClock();
-void updateDataPaneelVandaag();
-void updateDataPaneelForecast();
-void updateDisplayBrightness(int level);
-void updateTickerSegments();
-void updateTouchLedFeedback(unsigned long duration);
-void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant);
-bool vulGepersonaliseerdFeitje(char *buffer, size_t bufferSize);
+// void addTickerSegment(String txt, uint16_t col);
+
+// void drawISOAlert(int x, int y, int size, uint16_t color, bool active);
+// void drawPartyPopper(TFT_eSprite &spr, int x, int y, char gender);
+// void drawQRCodeOnTFT(const char *data, int x, int y, int scale);
+// void drawVerjaardagsKalender(TFT_eSprite &spr);
+// void drawWifiIndicator(int x, int y, int h);
+// void drawWeatherIcon(TFT_eSprite &spr, int x, int y, int size, int iconId, bool isDay);
+
+// void evaluateSystemSafety();
+// void finalizeSetupAndShowDashboard();
+// void finalizeUIAfterSetup();
+
+// void handleHardware();
+// void handleTouchLadder();
+
+// void manageAlertTimeout();
+// void manageDataPanels();
+// void manageEasterEggTimer();
+// void manageServerTimeout();
+// void manageStatusLed();
+// void manageTimeFunctions();
+
+// void powerDownWiFi();
+
+// void setupDisplay();
+
+void renderFace(int hour, int min, int sec);
+
+// void updateClock();
+// void updateBirthdayAlertState();
+// void updateDataPaneelAlert();
+// void updateDataPaneelVandaag();
+// void updateDataPaneelForecast();
+// void updateDisplayBrightness(int level);
+// void updateTickerSegments();
+// void updateTouchLedFeedback(unsigned long duration);
+
+// void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant);
+// bool vulGepersonaliseerdFeitje(char *buffer, size_t bufferSize);
+
+// 1. Hardware instanties (extern blijven)
+extern TFT_eSPI tft;
+extern TFT_eSprite clkSpr, datSpr1, datSpr2, datSpr3, tckSpr;
+extern Adafruit_AHTX0 aht;
 
 extern SystemState state; // Voor toegang tot de centrale 'state' struct
+extern std::vector<BirthdayEntry> App::getSortedBirthdays(int limit);
 
 // --- LOGICA VOOR HET OMZETTEN VAN DATA NAAR TEKST OF SYMBOLEN ---
 
@@ -69,6 +97,8 @@ String getWindRoos(int graden)
     int index = (int)((graden + 11.25) / 22.5) % 16;
     return String(roos[index]);
 }
+
+// Beaufort schaal gebaseerd op windsnelheid in m/s
 int getBeaufort(float ms)
 {
     if (ms < 0.3)
@@ -98,7 +128,8 @@ int getBeaufort(float ms)
     return 12;
 }
 
-int berekenMinutenTotUpdate()
+
+int App::berekenMinutenTotUpdate()
 {
     // 1. Haal de huidige tijd (Epoch) op
     uint32_t nu = time(nullptr); // Haal de huidige Unix timestamp op
@@ -196,10 +227,8 @@ const char *getBaroText(char *buffer, size_t bufferSize)
     return buffer;
 }
 
-// --- INITIALISATIE ---
-
 // --- DISPLAY SETUP FUNCTIE ---
-void setupDisplay()
+void App::setupDisplay()
 {
     // 2. Initialiseer TFT
     tft.init();
@@ -240,23 +269,23 @@ void setupDisplay()
 }
 
 // --- FINALISATIE NA SETUP: Alles klaarzetten en dashboard tonen ---
-void finalizeSetupAndShowDashboard()
+void App::finalizeSetupAndShowDashboard()
 {
     // 1. Trek het gordijn dicht (Snel faden naar zwart)
     for (int b = state.display.backlight_pwm; b >= 0; b -= 10)
     {
-        updateDisplayBrightness(b);
+        App::updateDisplayBrightness(b);
         delay(5);
     }
 
-    manageTimeFunctions();
+    App::manageTimeFunctions();
     int targetBrightness = (state.env.is_night_mode) ? state.display.night_brightness : state.display.day_brightness;
 
     // VOORWAARDE: Als we in setup of beheer zitten, doen we NIETS met sprites
     if (state.network.is_setup_mode || state.network.web_server_active)
     {
         // Alleen de helderheid regelen (zodat we de QR kunnen zien)
-        updateDisplayBrightness(state.display.day_brightness);
+        App::updateDisplayBrightness(state.display.day_brightness);
         return;
     }
 
@@ -265,8 +294,8 @@ void finalizeSetupAndShowDashboard()
 
     // 3. Bouw het COMPLETE dashboard op in de achtergrond (Sprites vullen)
     updateClock();          // Vult clkSpr
-    manageDataPanels();     // Vult datSpr (omdat data_is_fresh nu true is)
-    updateTickerSegments(); // Vult tckSpr met MODE_NORMAL
+    App::manageDataPanels();     // Vult datSpr (omdat data_is_fresh nu true is)
+    App::updateTickerSegments(); // Vult tckSpr met MODE_NORMAL
 
     // 4. "Atomic" Push: Stuur alles direct achter elkaar naar het scherm
     // Geen berekeningen meer hier, alleen pixels pushen!
@@ -283,7 +312,7 @@ void finalizeSetupAndShowDashboard()
 }
 
 // --- BACKLIGHT FUNCTIES ---
-void updateDisplayBrightness(int level)
+void App::updateDisplayBrightness(int level)
 {
     // Gebruik een 'static' variabele om de ÉCHTE hardware stand te onthouden
     // We zetten deze op -1 zodat hij bij de eerste start NOOIT gelijk is aan 'level'
@@ -337,7 +366,7 @@ void updateDisplayBrightness(int level)
 }
 
 // --- TICKER SEGMENT FUNCTIES ---
-void addTickerSegment(String txt, uint16_t col)
+void App::addTickerSegment(String txt, uint16_t col)
 {
     TickerSegment seg;
 
@@ -352,7 +381,7 @@ void addTickerSegment(String txt, uint16_t col)
 }
 
 // --- KLOK UPDATE FUNCTIE ---
-void updateClock()
+void App::updateClock()
 {
     struct tm timeinfo;
     if (getLocalTime(&timeinfo))
@@ -364,7 +393,7 @@ void updateClock()
 }
 
 // --- DATA PANEL UPDATE FUNCTIES ---
-void updateDataPaneelVandaag()
+void App::updateDataPaneelVandaag()
 {
     uint16_t TFT_BGD = state.env.is_night_mode ? Config::bg_color_night : Config::bg_color_day;
     uint16_t TFT_GFX = state.env.is_night_mode ? Config::text_color_night : Config::gfx_color_day;
@@ -372,7 +401,7 @@ void updateDataPaneelVandaag()
     datSpr1.fillSprite(TFT_BLACK);
 
     // --- 1. ICOON ---
-    drawWeatherIcon(datSpr1, 10, 5, 80, state.weather.current_icon, !state.env.is_night_mode);
+    App::drawWeatherIcon(datSpr1, 10, 5, 80, state.weather.current_icon, !state.env.is_night_mode);
 
     // --- 2. TEMPERATUUR ---
     datSpr1.setTextFont(4);
@@ -564,7 +593,7 @@ void updateDataPaneelVandaag()
 }
 
 // --- UPDATE FUNCTIE VOOR HET VOORSPELLINGS-PANEEL (3 DAGEN) ---
-void updateDataPaneelForecast()
+void App::updateDataPaneelForecast()
 {
     datSpr2.fillSprite(TFT_BLACK); // We gebruiken datSpr voor beide panelen
     datSpr2.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -589,7 +618,7 @@ void updateDataPaneelForecast()
         datSpr2.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
         datSpr2.drawString(datumBuf, 33, yPos + 30);
 
-        drawWeatherIcon(datSpr2, 37, yPos + 5, 40, f.icon_id, true);
+        App::drawWeatherIcon(datSpr2, 37, yPos + 5, 40, f.icon_id, true);
 
         datSpr2.setTextDatum(TR_DATUM);
         datSpr2.setTextFont(2);
@@ -608,7 +637,7 @@ void updateDataPaneelForecast()
     }
 }
 
-void updateDataPaneelAlert()
+void App::updateDataPaneelAlert()
 {
     datSpr3.fillSprite(TFT_BLACK);
     datSpr3.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -628,12 +657,10 @@ void updateDataPaneelAlert()
     datSpr3.print(weatherDescription);
     datSpr3.drawString(state.env.alert_message, 5, 35);
     delay(100000); // Wait for 10 seconds
-
-
 }
 
 // --- TEKENFUNCTIE VOOR QR-CODE: Gebruikt de qrcode library om een QR-code te genereren en direct op het TFT-scherm te tekenen. ---
-void drawQRCodeOnTFT(const char *data, int x, int y, int scale)
+void App::drawQRCodeOnTFT(const char *data, int x, int y, int scale)
 {
     QRCode qrcode;
     // Version 4 is iets groter (33x33), ideaal voor de WiFi-string
@@ -657,7 +684,7 @@ void drawQRCodeOnTFT(const char *data, int x, int y, int scale)
 
 // Tekent een WiFi-indicator met 4 bars, waarbij de kleur en het aantal bars afhankelijk zijn van het gescande signaal (RSSI).
 // De indicator heeft ook een speciale "stand-by" kleur wanneer we in On-Demand mode zitten zonder verbinding.
-void drawWifiIndicator(int x, int y, int h)
+void App::drawWifiIndicator(int x, int y, int h)
 {
     static float filteredRSSI = -70.0;
     static long lastWifiCheck = 0;
@@ -729,7 +756,7 @@ void drawWifiIndicator(int x, int y, int h)
     }
 }
 
-void drawISOAlert(int x, int y, int size, uint16_t color, bool active)
+void App::drawISOAlert(int x, int y, int size, uint16_t color, bool active)
 {
     // Bepaal de kleur:
     // Als 'color' niet de default TFT_BLACK (0) is, gebruik die.
@@ -759,7 +786,7 @@ void drawISOAlert(int x, int y, int size, uint16_t color, bool active)
     // }
 }
 
-void drawWeatherIcon(TFT_eSprite &spr, int x, int y, int size, int iconId, bool isDay)
+void App::drawWeatherIcon(TFT_eSprite &spr, int x, int y, int size, int iconId, bool isDay)
 {
     const unsigned char *bitmap;
     uint16_t kleur = getIconColor(iconId);
@@ -776,8 +803,106 @@ void drawWeatherIcon(TFT_eSprite &spr, int x, int y, int size, int iconId, bool 
     }
 }
 
+void App::updateBirthdayAlertState()
+{
+    // Scan je birthdays.txt
+    auto lijst = App::getSortedBirthdays(1);
+    if (!lijst.empty() && lijst[0].dagenTeGaan <= 5)
+    {
+        state.display.birthday_upcoming = true;
+    }
+    else
+    {
+        state.display.birthday_upcoming = false;
+    }
+}
+
+void App::drawPartyPopper(TFT_eSprite &spr, int x, int y, char gender)
+{
+    uint16_t hoofdkleur, accentkleur, confettiKleur;
+
+    // 1. Kleurenpalet bepalen
+    if (gender == 'V' || gender == 'v')
+    {
+        hoofdkleur = TFT_MAGENTA;
+        accentkleur = TFT_PINK;
+        confettiKleur = 0xF81F; // Fel roze/paars
+    }
+    else if (gender == 'M' || gender == 'm')
+    {
+        hoofdkleur = TFT_SKYBLUE;
+        accentkleur = TFT_BLUE;
+        confettiKleur = TFT_CYAN;
+    }
+    else
+    {
+        // Fallback: Goud/Geel voor onbekend/neutraal
+        hoofdkleur = 0xFBE0; // Goud
+        accentkleur = TFT_ORANGE;
+        confettiKleur = TFT_YELLOW;
+    }
+
+    int fase = millis() / 1000 % 3; // Geeft 0, 1 of 2
+
+
+    // De Toeter (Nu met gender-kleuren)
+    spr.fillTriangle(x, y + 17, x + 5, y + 3, x + 15, y + 13, accentkleur);
+    spr.drawLine(x + 5, y + 3, x + 15, y + 13, hoofdkleur);
+    spr.drawLine(x + 5, y + 5, x + 13, y + 13, hoofdkleur);
+
+    // Dynamische Confetti op basis van 'fase'
+    if (fase == 0)
+    {
+        spr.fillCircle(x + 16, y + 2, 2, confettiKleur);
+        spr.fillCircle(x + 8, y - 2, 1, TFT_CYAN);
+        spr.fillCircle(x + 20, y + 7, 2, TFT_MAGENTA);
+    }
+    else if (fase == 1)
+    {
+        spr.fillCircle(x + 14, y - 1, 2, TFT_YELLOW);
+        spr.fillCircle(x + 10, y + 1, 1, TFT_GREEN);
+        spr.fillCircle(x + 18, y + 10, 2, TFT_BLUE);
+    }
+    else
+    {
+        spr.fillCircle(x + 18, y + 4, 2, TFT_WHITE);
+        spr.fillCircle(x + 12, y - 3, 1, confettiKleur);
+        spr.fillCircle(x + 15, y + 8, 2, TFT_YELLOW);
+    }
+}
+
+void App::drawVerjaardagsKalender(TFT_eSprite &spr)
+{
+    datSpr1.fillSprite(TFT_BLACK);
+    datSpr1.setTextColor(TFT_GOLD);
+    datSpr1.setTextFont(4);
+    datSpr1.setTextDatum(TC_DATUM);
+    datSpr1.drawString("KALENDER", 85, 5);
+    datSpr1.drawLine(10, 25, 160, 25, TFT_DARKGREY);
+
+    auto lijst = App::getSortedBirthdays(5);
+    int y = 35;
+
+    datSpr1.setTextFont(2);
+    for (auto &b : lijst)
+    {
+        datSpr1.setTextDatum(TL_DATUM);
+        datSpr1.setTextColor(TFT_WHITE);
+        datSpr1.drawString(b.naam, 10, y);
+
+        datSpr1.setTextDatum(TR_DATUM);
+        datSpr1.setTextColor(0x7BEF); // Lichtgrijs/blauw
+        // Toon datum en leeftijd: "12/03 (42j)"
+        char info[32];
+        snprintf(info, sizeof(info), "%02d/%02d (%dj)", b.dag, b.maand, b.nieuweLeeftijd);
+        datSpr1.drawString(info, 168, y);
+
+        y += 20;
+    }
+}
+
 // ---  HARDWARE INTERACTIE FUNCTIES ---
-void handleHardware()
+void App::handleHardware()
 {
     // 1. TOUCH SENSOR (GPIO 13)
     int touchVal = touchRead(13);
@@ -822,7 +947,7 @@ void handleHardware()
     }
 }
 
-void handleTouchLadder()
+void App::handleTouchLadder()
 {
     int touchVal = touchRead(13);
     static unsigned long touchStart = 0;
@@ -853,7 +978,7 @@ void handleTouchLadder()
         // }
 
         // FEEDBACK (Alleen LED, GEEN acties!)
-        updateTouchLedFeedback(duration);
+        App::updateTouchLedFeedback(duration);
     }
     else if (isTouching)
     { // --- VINGER ERAF: Hier gebeurt de actie ---
@@ -867,8 +992,8 @@ void handleTouchLadder()
             if (state.network.web_server_active || state.network.is_setup_mode)
             {
                 // deactivateWiFiAndServer();
-                powerDownWiFi();
-                finalizeUIAfterSetup();
+                App::powerDownWiFi();
+                App::finalizeUIAfterSetup();
                 state.network.is_setup_mode = false;
             }
             else if (state.display.show_system_monitor)
@@ -883,6 +1008,11 @@ void handleTouchLadder()
                 // De herstart zal dit netjes oplossen zonder dat we risico lopen op onvoorziene bugs door gedeeltelijke resets.
                 // tft.fillScreen(TFT_BLACK);
             }
+            else if (state.display.show_calendar)
+            {
+                state.display.show_calendar = false;
+                // state.display.force_ticker_refresh = true; // Forceren van een update van de ticker, zodat we direct terugkeren naar de normale weergave
+            }
             else
             {
                 // Normale werking: toggle alert display
@@ -894,19 +1024,30 @@ void handleTouchLadder()
             Config::forceFirstWeatherUpdate = false;
         }
 
-        // 2. ZONE: 5 - 8 SEC (De Generaal: WebConfig)
+        // 2. NEW ZONE: 5 - 8 SEC (De Kalender)
         else if (eindDuur >= 5000 && eindDuur < 8000)
+        {
+            state.display.show_calendar = !state.display.show_calendar;
+            if (state.display.show_calendar)
+            {
+                state.display.calendar_show_until = millis() + (120 * 1000); // 2 minuten
+                tft.fillScreen(TFT_BLACK);                                   // Scherm even schoon voor de nieuwe layout
+            }
+        }
+
+        // 2. ZONE: 8 - 11 SEC (De Generaal: WebConfig)
+        else if (eindDuur >= 8000 && eindDuur < 11000)
         {
             if (!state.network.web_server_active)
             {
                 tft.fillScreen(TFT_BLACK);
-                activateWiFiAndServer(); // Start de server pas NU
+                App::activateWiFiAndServer(); // Start de server pas NU
                 // state.display.force_ticker_refresh = true;
             }
         }
 
-        // 3. ZONE: 8 - 11 SEC (De Machinekamer: Systeem Status)
-        else if (eindDuur >= 8000 && eindDuur < 11000)
+        // 3. ZONE: 11 - 14 SEC (De Machinekamer: Systeem Status)
+        else if (eindDuur >= 11000 && eindDuur < 14000)
         {
             state.display.show_system_monitor = !state.display.show_system_monitor;
             // lastStatus = -1; // Forceren van een update in de volgende loop, zodat we direct visuele feedback krijgen van de verandering
@@ -934,13 +1075,13 @@ void handleTouchLadder()
         // Update alleen de panelen als we NIET in een speciale modus zitten
         if (!state.network.is_setup_mode && !state.network.web_server_active && !state.display.show_system_monitor)
         {
-            manageDataPanels();
+            App::manageDataPanels();
         }
     }
 }
 
 // even kijken of we dit nog nodig hebben of gebruiken om de status van handleTouchLadder te ondersteunen
-void manageStatusLed()
+void App::manageStatusLed()
 {
     // Als we aan het drukken zijn, bemoeit deze functie zich nergens mee
     if (state.env.is_touching)
@@ -961,7 +1102,7 @@ void manageStatusLed()
     }
 }
 
-void updateTouchLedFeedback(unsigned long duration)
+void App::updateTouchLedFeedback(unsigned long duration)
 {
     if (duration < 2000)
     {
@@ -970,15 +1111,20 @@ void updateTouchLedFeedback(unsigned long duration)
     }
     else if (duration < 5000)
     {
+        digitalWrite(Config::pin_fingerprint_led, (millis() % 100 < 50)); // Snel (Actie/Alert zone)
+        state.display.touch_indicator_color = TFT_GREEN;
+    }
+    else if (duration < 8000)
+    {
         digitalWrite(Config::pin_fingerprint_led, (millis() % 200 < 100)); // Snel (Actie/Alert zone)
         state.display.touch_indicator_color = TFT_MAGENTA;
     }
-    else if (duration < 8000)
+    else if (duration < 11000)
     {
         digitalWrite(Config::pin_fingerprint_led, HIGH); // Constant (WebConfig zone)
         state.display.touch_indicator_color = TFT_CYAN;
     }
-    else if (duration < 11000)
+    else if (duration < 14000)
     {
         // SOS Morse Feedback (Systeem Status zone)
         int cycle = (millis() % 1500);
@@ -995,18 +1141,56 @@ void updateTouchLedFeedback(unsigned long duration)
     }
 }
 
-void manageAlertTimeout()
+//          --- LOGICA VOOR HET BEHEREN VAN HET PAASEI-TIMER EN DE GEKOPPELEDE TEKST ---
+void App::manageEasterEggTimer()
+{
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo))
+        return;
+
+    int huidigeMinuutInDag = (timeinfo.tm_hour * 60) + timeinfo.tm_min;
+
+    // 1. KIEZEN VAN EEN NIEUW MOMENT
+    if (state.env.next_easter_egg_minute == -1)
+    {
+        int interval = random(15, 120); // Willekeurig interval tussen 15 en 120 minuten
+        state.env.next_easter_egg_minute = (huidigeMinuutInDag + interval) % 1440;
+        Serial.printf(F("[EASTER-EGG] Volgende over % d min (omstreeks minuut % d)\n"), interval, state.env.next_easter_egg_minute);
+    }
+
+    // 2. IS HET TIJD? (De Grendel)
+    if (huidigeMinuutInDag == state.env.next_easter_egg_minute)
+    {
+        state.display.show_easter_egg = true;
+        state.env.next_easter_egg_minute = -1; // CRUCIAAL: Zet hem direct op -1 zodat hij deze minuut NIET nog 1000x checkt!
+        // Serial.printf(F("[EASTER-EGG] Vlag omhoog en timer gereset voor de volgende ronde.\n"));
+    }
+}
+
+
+void App::manageAlertTimeout()
 {
     if (!state.env.alert_muted && millis() > Config::alert_timeout)
     {
         state.env.alert_muted = true;         // Terug naar rustige stand
         state.display.ticker_x = tft.width(); // Reset ticker weer
-        updateTickerSegments();
+        App::updateTickerSegments();
         Serial.printf("[ALARM] Auto-timeout: Ticker terug naar normaal.\n");
     }
 }
 
-void evaluateSystemSafety()
+void App::manageServerTimeout()
+{
+    if (state.network.is_setup_mode || state.network.web_server_active)
+    {
+        if (millis() - state.network.server_start_time >= Config::ten_min_timeout) // 10 minuten
+        {
+            App::powerDownWiFi();
+        }
+    }
+}
+
+void App::evaluateSystemSafety()
 {
     float temp = state.env.case_temp;
 
@@ -1032,7 +1216,7 @@ void evaluateSystemSafety()
             state.env.health = HEALTH_WARNING;          // We zakken een niveau
 
             // Reanimeer het scherm
-            setupDisplay();
+            App::setupDisplay();
             Serial.printf("[SAFETY] Herstel: Scherm gereanimeerd.\n");
         }
         else
@@ -1052,7 +1236,7 @@ void evaluateSystemSafety()
     }
 }
 
-void finalizeUIAfterSetup()
+void App::finalizeUIAfterSetup()
 {
     tft.fillScreen(TFT_BLACK);
     state.display.force_ticker_refresh = true;
