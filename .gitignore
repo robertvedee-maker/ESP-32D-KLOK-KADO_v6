@@ -4,7 +4,7 @@
 *.bak
 include/secret.h
 include/preview.html
+include/_*.h
 *.txt
 src/_copy-paste.cpp
-
-
+src/web_config.cp_

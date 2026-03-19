@@ -6,37 +6,9 @@
  * het starten van de setup mode (AP + captive portal),
  */
 
-// #include "network_logic.h"
-// #include "bitmaps/BootImages.h"
-// #include "global_data.h"
-#include "helpers.h"
-// #include "secret.h" // Nodig voor OTA-naam/wachtwoord en OWM data
-// #include "storage_logic.h"
-// #include "web_config.h"
-// #include <ArduinoOTA.h>
-// #include <ESPmDNS.h>
-// #include <Preferences.h>
-// #include <WiFi.h>
-
-// // Forward declarations
-// void activateWiFiAndServer();
-// // void deactivateWiFiAndServer();jjjjj
-// void enableWiFi();
-// // void handleTicker();
-// void handleWiFiEco();
-// void manageServerTimeout();
-// void renderTicker();
-// void setupWiFi();
-// void startAccessPoint();
-// void stopSetupMode();
-// // void setupOTA();
-// // void showNetworkInfo();
-// // void updateTickerSegments();
-
-// void powerDownWiFi();
-
 #include "app_actions.h"
 
+extern AsyncWebServer server;
 DNSServer dnsServer;
 const byte DNS_PORT = 53;
 
@@ -152,7 +124,6 @@ void App::setupWiFi()
         // --- S.P.O.T. SYNC ---
         state.network.wifi_connected = true;
         state.network.is_setup_mode = false; // Belangrijk: zet de klok-loop weer 'aan'
-        // initWebServer(); // We starten de server pas als we zeker weten dat we verbinding hebben, en met de juiste gegevens
         // setupOTA();
     }
 
@@ -162,29 +133,6 @@ void App::setupWiFi()
     }
     Serial.printf("[NET] IP-Adres  : %s\n", WiFi.localIP().toString().c_str());
 }
-
-// // --- 4. OVER-THE-AIR (OTA) ---
-// void setupOTA()
-// {
-//     ArduinoOTA.setHostname(state.network.mdns.c_str()); // Gebruik de mDNS-naam uit de state
-//     // Hier kun je evt. een wachtwoord toevoegen uit secret.h
-//     // ArduinoOTA.setPassword(OTA_PASSWORD);
-
-//     ArduinoOTA.onStart([]()
-//                        {
-//         tft.fillScreen(TFT_BLACK);
-//         tft.setTextColor(TFT_GOLD);
-//         tft.drawString("OTA Update...", 10, 10); });
-
-//     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
-//                           {
-//         int width = (progress / (total / 200));
-//         tft.drawRect(20, 150, 200, 10, TFT_WHITE);
-//         tft.fillRect(22, 152, width - 4, 6, TFT_GREEN); });
-
-//     // ArduinoOTA.begin();
-//     Serial.printf("OTA Ready\n");
-// }
 
 void App::activateWiFiAndServer()
 {

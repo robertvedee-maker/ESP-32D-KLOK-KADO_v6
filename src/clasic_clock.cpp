@@ -3,17 +3,12 @@
  * Clasic Clock rendering logic
  */
 
-#include "clasic_clock.h"
+// #include "clasic_clock.h"
 #include "app_actions.h"
-// #include "daynight.h"
-// #include "env_sensors.h"
-// #include "global_data.h"
-// #include "helpers.h"
-// #include "secret.h"
-// #include <TFT_eSPI.h>
+
 
 // Forward declaration
-void drawPartyPopper(TFT_eSprite& spr, int x, int y, char gender);
+// void drawPartyPopper(TFT_eSprite& spr, int x, int y, char gender);
 
 extern TFT_eSPI tft; // Verwijs naar de tft in helpers.cpp
 extern TFT_eSprite clkSpr; // Verwijs naar de sprite in helpers.cpp
@@ -27,7 +22,7 @@ extern TFT_eSprite clkSpr; // Verwijs naar de sprite in helpers.cpp
 #define DEG2RAD 0.0174532925
 
 // Functie voor coördinaten berekening
-void getCoord(int16_t x, int16_t y, float* xp, float* yp, int16_t r, float a)
+void App::getCoord(int16_t x, int16_t y, float* xp, float* yp, int16_t r, float a)
 {
     float sx1 = cos((a - 90) * DEG2RAD);
     float sy1 = sin((a - 90) * DEG2RAD);
@@ -35,7 +30,7 @@ void getCoord(int16_t x, int16_t y, float* xp, float* yp, int16_t r, float a)
     *yp = sy1 * r + y;
 }
 
-void renderFace(int h, int m, int s)
+void App::renderFace(int h, int m, int s)
 {
     float s_angle = s * 6.0;
     float m_angle = m * 6.0 + s_angle / 60.0;

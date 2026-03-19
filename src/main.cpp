@@ -7,44 +7,9 @@
 
 #include "app_actions.h"
 
-// #include "config.h"        // Voor pinnen en constanten
-// #include "daynight.h"      // Voor tijd en helderheid
-// #include "display_logic.h" // Voor ticker en panelen
-// #include "env_sensors.h"   // Voor BME/AHT sensoren
-// #include "global_data.h"   // Voor toegang tot 'state'
-#include "helpers.h"       // Voor setupDisplay, updateClock, etc.
-// #include "network_logic.h" // Voor WiFi en OTA setup
-// #include "secret.h"        // Voor WiFi credentials
-#include "storage_logic.h" // Voor NVS opslag
-// #include "weather_logic.h" // Voor OWM data
-// #include <Arduino.h>
-// #include <ArduinoOTA.h>
-// #include <Preferences.h>
-// #include <time.h>
-// #include <WiFi.h>
-// #include <LittleFS.h>
-// #include <TFT_eSPI.h>
 
 class TFT_eSprite; 
 extern TFT_eSPI tft;
-
-
-// // void updateTickerSegments();
-// void evaluateSystemSafety();
-// void finalizeSetupAndShowDashboard();
-// void handleTouchLadder();
-// void loop();
-// void manageDataPanels();
-// void manageEasterEggTimer();
-// void manageServerTimeout();
-// void manageStatusLed();
-// void renderTicker();
-// void setup();
-// void showSetupInstructionPanel();
-// // void drawSystemMonitor();
-// void updateBaroTrend();
-// void updateBirthdayAlertState();
-
 
 static uint32_t lastLoggedStartTime = 0;
 
@@ -59,12 +24,6 @@ namespace Config
 
 void setup()
 {
-
-    // TIJDELIJK: Wis alles om de 'eerste keer' te simuleren
-    // #include <nvs_flash.h>
-    // nvs_flash_erase();
-    // nvs_flash_init();
-
     // 1. Hou alles even STROOMLOOS (Buck uit)
     pinMode(Config::pin_buck_enable, OUTPUT);
     digitalWrite(Config::pin_buck_enable, HIGH);
@@ -108,7 +67,7 @@ void setup()
     // }
 
     // STORAGE START (Vroeger, zodat we direct de opgeslagen helderheid kunnen laden)
-    initStorage();
+    App::initStorage();
 
     // SENSOR START
     if (App::setupSensors())

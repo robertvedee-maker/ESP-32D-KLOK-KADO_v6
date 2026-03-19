@@ -5,31 +5,8 @@
 
 #include "app_actions.h"
 
-
-// #include "weather_logic.h"
-// #include "display_logic.h"
-// #include "global_data.h"
-// #include "helpers.h"
-// #include "secret.h"
-// #include <ArduinoJson.h>
-// #include <HTTPClient.h>
-// #include <WiFiClientSecure.h>
-// #include <WiFi.h>
-// #include <Preferences.h>
 #include <esp_task_wdt.h>
 
-
-
-// // forward declarations
-// bool fetchWeather(bool checkOnly);
-// void manageWeatherUpdates();
-// void updateBaroTrend();
-// // void updateTickerSegments();
-// String urlEncode(String str);
-// // void setupWiFi();
-// void disableWiFi();
-// // void deactivateWiFiAndServer();
-// // void powerDownWiFi();
 void saveWeatherCache();
 
 void App::manageWeatherUpdates()

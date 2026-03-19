@@ -1,37 +1,13 @@
-// #include "global_data.h"
-// #include "config.h"
-#include "helpers.h"
-#include "bitmaps/BootImages.h"
-
-// #include "secret.h"
-// #include "web_config.h"
-// #include <ESPmDNS.h>
-// #include "storage_logic.h"
-// #include <Preferences.h>
-
-// #include "Setup_Manager.h"
-// #include <WiFi.h>
-// #include <ESPAsyncWebServer.h>
-#include <TFT_eSPI.h>
-
+/*
+ * (c)2026 R van Dorland - Licensed under MIT License
+ * Setup Manager: Alles wat te maken heeft met het opstarten van de ESP32, het initiëren van de hardware en het voorbereiden van de app voor gebruik.
+ * Hierin staan functies zoals setup(), startAccessPoint(), en alle logica die nodig is om de app in de juiste staat te krijgen bij het opstarten.
+ * Ook de logica voor het tekenen van het setup-scherm en het beheren van de overgangen tussen de verschillende setup-stappen wordt hier beheerd.
+ * We hebben ervoor gekozen om deze functies in een aparte file te zetten om de code beter te organiseren en de setup-logica gescheiden te houden van de rest van de app, 
+ * zodat we een duidelijk overzicht hebben van alles wat er gebeurt tijdens het opstarten en de setup-fase.
+ */
 
 #include "app_actions.h"
-
-// extern AsyncWebServer server;
-extern void drawQRCodeOnTFT(const char *data, int x, int y, int scale);
-extern TFT_eSPI tft;
-
-
-// // void drawSetupScreen();
-// void drawSetupModeActive();
-// void drawSystemMonitor();
-// void haltSystemWithInstruction();
-// void showNetworkInfo();
-// void showSetupInstructionPanel();
-// void startAccessPoint();
-// extern void updateDateTimeStrings();
-
-
 
 // Interne variabelen (alleen zichtbaar in dit bestand)
 static unsigned long lastRedraw = 0;

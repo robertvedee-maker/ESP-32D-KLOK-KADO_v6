@@ -1,18 +1,30 @@
-#include <Preferences.h>
-#include "global_data.h"
-#include "storage_logic.h"
+/* (c)2026 R van Dorland - Licensed under MIT License
+ *
+ * storage_logic.cpp - Alle functies die te maken hebben met het laden en opslaan van data in de flash van de ESP32.
+ * 
+ * Deze functies gebruiken de Preferences library om data op te slaan in de flash, zodat deze behouden blijft na een reboot.
+ * We hebben aparte functies voor het laden en opslaan van verschillende soorten data, zoals netwerkconfiguratie, weerdata en display-instellingen.
+ * Op deze manier kunnen we de code beter organiseren en de opslaglogica gescheiden houden van de rest van de app.
+ */
+
+#include "app_actions.h"
+
+// #include <Preferences.h>
+// #include "global_data.h"
+// #include "storage_logic.h"
+
 
 Preferences preferences;
 
 // --- DE HOOFDKRAAN ---
-void initStorage()
+void App::initStorage()
 {
     Serial.printf("[STORAGE] Systeem laden...\n");
     // loadUserData();        // Laadt naam en geboortedatum
-    loadNetworkConfig();   // Laadt SSID/Pass
-    loadOMWConfig();       // Laadt OWM key en Lat/Lon
-    loadDisplaySettings(); // Laadt Helderheid, Transitie, User en LED
-    loadWeatherCache();    // Laadt de laatste weerdata (voor snelle weergave bij opstarten)
+    App::loadNetworkConfig();   // Laadt SSID/Pass
+    App::loadOMWConfig();       // Laadt OWM key en Lat/Lon
+    App::loadDisplaySettings(); // Laadt Helderheid, Transitie, User en LED
+    App::loadWeatherCache();    // Laadt de laatste weerdata (voor snelle weergave bij opstarten)
     Serial.printf("[STORAGE] Alles succesvol gesynchroniseerd.\n");
     // Debugging: Altijd handig om te zien of het gelukt is
     Serial.printf("[STORAGE] Geladen: Mode=%d, Naam=%s\n",
@@ -20,7 +32,7 @@ void initStorage()
 }
 
 // --- DISPLAY & USER SETTINGS ---
-void loadDisplaySettings()
+void App::loadDisplaySettings()
 {
     // Gebruik OVERAL "clock_cfg" voor consistentie
     preferences.begin("clock_cfg", true);
@@ -38,7 +50,7 @@ void loadDisplaySettings()
     preferences.end();
 }
 
-void saveDisplaySettings()
+void App::saveDisplaySettings()
 {
     preferences.begin("clock_cfg", false);
 
@@ -56,7 +68,7 @@ void saveDisplaySettings()
 }
 
 // --- NETWERK ---
-void loadNetworkConfig()
+void App::loadNetworkConfig()
 {
     preferences.begin("clock_cfg", true);
     // Als er niets in flash staat, wordt het "klok-kado"
@@ -67,7 +79,7 @@ void loadNetworkConfig()
     preferences.end();
 }
 
-void saveNetworkConfig()
+void App::saveNetworkConfig()
 {
     preferences.begin("clock_cfg", false);
     preferences.putString("mdns", state.network.mdns);
@@ -78,7 +90,7 @@ void saveNetworkConfig()
 }
 
 // --- OWM & LOCATIE ---
-void loadOMWConfig()
+void App::loadOMWConfig()
 {
     preferences.begin("clock_cfg", true);
     state.network.owm_key = preferences.getString("owm_key", state.network.owm_key);
@@ -87,7 +99,7 @@ void loadOMWConfig()
     preferences.end();
 }
 
-void saveOMWConfig()
+void App::saveOMWConfig()
 {
     preferences.begin("clock_cfg", false);
     preferences.putString("owm_key", state.network.owm_key);
@@ -97,7 +109,7 @@ void saveOMWConfig()
 }
 
 // --- WEER CACHE (In een eigen emmer om slijtage flash te spreiden) ---
-void loadWeatherCache()
+void App::loadWeatherCache()
 {
     preferences.begin("weer_cache", true);
     state.weather.temp = preferences.getFloat("last_t", 0.0);
@@ -114,7 +126,7 @@ void loadWeatherCache()
     preferences.end();
 }
 
-void saveWeatherCache()
+void App::saveWeatherCache()
 {
     preferences.begin("weer_cache", false);
     preferences.putFloat("last_t", state.weather.temp);

@@ -1,18 +1,13 @@
-#include "web_config.h"
-#include "global_data.h"
-#include <Preferences.h>
-#include <LittleFS.h>
+// #include "web_config.h"
+// #include "global_data.h"
+// #include <Preferences.h>
+// #include <LittleFS.h>
 
 #include "app_actions.h"
 
 AsyncWebServer server(80);
 
-// // Forward declarations
-// String App::getBirthdaysRaw();
-// void App::saveBirthdays(String bdaysRaw);
-
-
-void initWebServer()
+void App::initWebServer()
 {
     // 1. De Hoofdpagina (Uitgebreid formulier)
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)

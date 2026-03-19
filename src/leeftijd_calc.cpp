@@ -3,14 +3,6 @@
  * Leeftijd berekenen op basis van geboortedatum
  */
 
-    // #include "leeftijd_calc.h"
-    // #include "global_data.h"
-    #include "helpers.h"
-    // #include "secret.h"
-    // #include <time.h>
-
-    // #include <Arduino.h>
-    // #include "global_data.h"
 
 #include "app_actions.h"
 

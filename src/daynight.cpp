@@ -4,15 +4,7 @@
  */
 
 #include "app_actions.h"
-// #include "daynight.h"
-// #include "global_data.h"
-// #include "secret.h"
-// #include <SolarCalculator.h>
 
-// // Forward declaration
-// void App::manageBrightness();
-// void App::activateWiFiAndServer();
-// void App::updateDisplayBrightness(int pwm);
 
 static float lastSunrise = -1.0; // Voor debuggen: onthoud de laatste sunrise tijd om te zien wanneer deze verandert
 

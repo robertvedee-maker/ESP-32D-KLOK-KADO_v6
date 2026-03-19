@@ -5,18 +5,6 @@
  * en het bepalen of er een verjaardag 'binnenkort' is.
 */
 
-// #include "global_data.h"
-// #include "birthday_logic.h"
-#include "helpers.h"
-// #include <LittleFS.h>
-
-// void saveBirthdays(String rawText);
-// void updateBirthdayList();
-// void updateDailyBirthdayState();
-
-// String getBirthdaysRaw();
-// std::vector<BirthdayEntry> getSortedBirthdays(int limit);// Voor toegang tot de gesorteerde verjaardagslijst, bijvoorbeeld in de display logic
-// std::vector<ActiveBirthday> currentBirthdays;// We slaan alleen de verjaardag van 'vandaag' of 'binnenkort' op in RAM
 
 #include "app_actions.h"
 

@@ -2,22 +2,8 @@
  * (c)2026 R van Dorland - Licensed under MIT License
  */
 
-#include "display_logic.h"
-#include "clasic_clock.h"
-#include "config.h"
-
-// #include "global_data.h"
-// #include "helpers.h"
-// #include "leeftijd_calc.h" // Voor het eitje
-// #include "secret.h"        // Voor de namen/bday
-// #include "weather_logic.h" // Voor de forecast data
 
 #include "app_actions.h"
-
-// #include <Arduino.h>
-// #include <TFT_eSPI.h>
-// #include <WiFi.h>
-// #include <SPI.h>
 
 // 1. Hardware instanties (MOETEN hier gedefinieerd worden)
 TFT_eSPI tft = TFT_eSPI();
@@ -28,36 +14,6 @@ TFT_eSprite datSpr3 = TFT_eSprite(&tft);
 TFT_eSprite tckSpr = TFT_eSprite(&tft);
 
 std::vector<TickerSegment> tickerSegments;
-
-
-
-// void addSegment(String t, uint16_t c);
-// void makeUpperCase(char *str);
-
-// void manageDataPanels();
-// void manageEasterEggTimer();
-// void manageServerTimeout();
-// void manageStatusLed();
-
-// void performTransition(TFT_eSprite *oldSpr, TFT_eSprite *newSpr);
-
-// void renderTicker();
-
-// void updateClock();
-// void updateBirthdayList();
-// void updateTickerSegments();
-
-// extern void updateDataPaneelVandaag();
-// extern void updateDataPaneelForecast();
-
-// void vulAlertSegmenten();
-// void vulBootSegmenten();
-// void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant = -1);
-// bool vulGepersonaliseerdFeitje(char *buffer, size_t bufferSize);
-// void vulNormalSegmenten();
-// void drawVerjaardagsKalender(TFT_eSprite &sprite);
-
-// int berekenMinutenTotUpdate();
 
 void App::makeUpperCase(char *str)
 {
@@ -193,25 +149,6 @@ void App::vulNormalSegmenten()
     snprintf(sZicht.text, sizeof(sZicht.text), "| ZICHT: %.0f %s", zichtWaarde, eenheid);
     sZicht.width = tckSpr.textWidth(sZicht.text);
     tickerSegments.push_back(sZicht);
-
-    // TickerSegment sWind;
-    // sWind.color = state.env.ticker_color;
-    // float speedMs = state.weather.wind_speed / 0.27778f;
-    // snprintf(sWind.text, sizeof(sWind.text), "| WIND: %.1f m/s (%s)",
-    //          speedMs,
-    //          getWindRoos(state.weather.wind_deg).c_str());
-    // sWind.width = tckSpr.textWidth(sWind.text);
-    // tickerSegments.push_back(sWind);
-
-    // float gustMs = state.weather.wind_gust / 0.27778f;
-    // if (gustMs > speedMs + 1.5f)
-    // {
-    //     TickerSegment sGust;
-    //     sGust.color = state.env.ticker_color;
-    //     snprintf(sGust.text, sizeof(sGust.text), "| WINDVLAGEN: %.1f m/s", gustMs);
-    //     sGust.width = tckSpr.textWidth(sGust.text);
-    //     tickerSegments.push_back(sGust);
-    // }
 
     // --- SEGMENT 3: PAASEI (De Verrassing) ---
     if (state.display.show_easter_egg)

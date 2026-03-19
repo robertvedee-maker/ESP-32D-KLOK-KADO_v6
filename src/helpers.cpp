@@ -1,75 +1,13 @@
 /*
  * (c)2026 R van Dorland - Licensed under MIT License
+ * Helpers: Alle kleine functies die overal gebruikt worden, maar niet echt in een specifieke categorie passen.
+ * Hierin staan functies zoals het tekenen van het WiFi-icoon, het Alert-icoon, het omzetten van OWM-codes naar kleuren, 
+ * en andere kleine utilities die in meerdere delen van de app worden gebruikt.
+ * We hebben ervoor gekozen om deze functies in een aparte file te zetten om de code beter te organiseren en de helper-functies gescheiden te houden van de hoofdlogica van de app, 
+ * zodat we een duidelijk overzicht hebben van alle kleine tools die we tot onze beschikking hebben en deze gemakkelijk kunnen onderhouden.
  */
 
-#include "helpers.h"
-// #include "config.h" // Toegevoegd voor Config:: pinnen en waarden
-#include "display_logic.h"
-// #include "driver/ledc.h" // Voor PWM controle van de backlight
-// #include "env_sensors.h"
-// #include "global_data.h"
-// #include "daynight.h"
-// #include "leeftijd_calc.h"
-// #include "secret.h"
-// #include "bitmaps/weatherIcons40.h"
-// #include "bitmaps/weatherIcons68.h"
-
 #include "app_actions.h"
-
-// #include "weather_logic.h"
-// #include <WiFi.h>
-// #include "network_logic.h"
-// #include "web_config.h"
-// #include <qrcode.h>
-// #include <algorithm>
-// #include <time.h>
-
-// --- HULPFUNCTIES: Kleine functies die in meerdere files worden gebruikt, zoals het omzetten van data naar tekst of symbolen, of het tekenen van veelgebruikte elementen op het scherm. ---
-// void addTickerSegment(String txt, uint16_t col);
-
-// void drawISOAlert(int x, int y, int size, uint16_t color, bool active);
-// void drawPartyPopper(TFT_eSprite &spr, int x, int y, char gender);
-// void drawQRCodeOnTFT(const char *data, int x, int y, int scale);
-// void drawVerjaardagsKalender(TFT_eSprite &spr);
-// void drawWifiIndicator(int x, int y, int h);
-// void drawWeatherIcon(TFT_eSprite &spr, int x, int y, int size, int iconId, bool isDay);
-
-// void evaluateSystemSafety();
-// void finalizeSetupAndShowDashboard();
-// void finalizeUIAfterSetup();
-
-// void handleHardware();
-// void handleTouchLadder();
-
-// void manageAlertTimeout();
-// void manageDataPanels();
-// void manageEasterEggTimer();
-// void manageServerTimeout();
-// void manageStatusLed();
-// void manageTimeFunctions();
-
-// void powerDownWiFi();
-
-// void setupDisplay();
-
-void renderFace(int hour, int min, int sec);
-
-// void updateClock();
-// void updateBirthdayAlertState();
-// void updateDataPaneelAlert();
-// void updateDataPaneelVandaag();
-// void updateDataPaneelForecast();
-// void updateDisplayBrightness(int level);
-// void updateTickerSegments();
-// void updateTouchLedFeedback(unsigned long duration);
-
-// void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant);
-// bool vulGepersonaliseerdFeitje(char *buffer, size_t bufferSize);
-
-// 1. Hardware instanties (extern blijven)
-extern TFT_eSPI tft;
-extern TFT_eSprite clkSpr, datSpr1, datSpr2, datSpr3, tckSpr;
-extern Adafruit_AHTX0 aht;
 
 extern SystemState state; // Voor toegang tot de centrale 'state' struct
 extern std::vector<BirthdayEntry> App::getSortedBirthdays(int limit);
@@ -77,7 +15,7 @@ extern std::vector<BirthdayEntry> App::getSortedBirthdays(int limit);
 // --- LOGICA VOOR HET OMZETTEN VAN DATA NAAR TEKST OF SYMBOLEN ---
 
 // Simpele mapping van OpenWeatherMap codes naar kleuren
-uint16_t getIconColor(int conditionCode)
+uint16_t App::getIconColor(int conditionCode)
 {
     if (conditionCode >= 200 && conditionCode < 300)
         return TFT_SILVER; // Onweer
@@ -91,7 +29,7 @@ uint16_t getIconColor(int conditionCode)
 }
 
 // Windroos en Beaufort schaal
-String getWindRoos(int graden)
+String App::getWindRoos(int graden)
 {
     const char *roos[] = {"N", "NNO", "NO", "ONO", "O", "OZO", "ZO", "ZZO", "Z", "ZZW", "ZW", "WZW", "W", "WNW", "NW", "NNW"};
     int index = (int)((graden + 11.25) / 22.5) % 16;
@@ -99,7 +37,7 @@ String getWindRoos(int graden)
 }
 
 // Beaufort schaal gebaseerd op windsnelheid in m/s
-int getBeaufort(float ms)
+int App::getBeaufort(float ms)
 {
     if (ms < 0.3)
         return 0;
@@ -145,7 +83,7 @@ int App::berekenMinutenTotUpdate()
 }
 
 // Barometer tekst op basis van druk en trend, met tijdsafhankelijke interpretatie
-const char *getBaroText(char *buffer, size_t bufferSize)
+const char *App::getBaroText(char *buffer, size_t bufferSize)
 {
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo))
@@ -293,7 +231,7 @@ void App::finalizeSetupAndShowDashboard()
     tft.fillScreen(TFT_BLACK);
 
     // 3. Bouw het COMPLETE dashboard op in de achtergrond (Sprites vullen)
-    updateClock();          // Vult clkSpr
+    App::updateClock();          // Vult clkSpr
     App::manageDataPanels();     // Vult datSpr (omdat data_is_fresh nu true is)
     App::updateTickerSegments(); // Vult tckSpr met MODE_NORMAL
 
@@ -306,7 +244,7 @@ void App::finalizeSetupAndShowDashboard()
     // 5. Trek het gordijn open (Rustig faden naar de ingestelde helderheid)
     for (int b = 0; b <= targetBrightness; b += 5)
     {
-        updateDisplayBrightness(b);
+        App::updateDisplayBrightness(b);
         delay(15);
     }
 }
@@ -388,7 +326,7 @@ void App::updateClock()
     {
         // Teken de wijzers (deze functie komt uit classic_clock.cpp)
         // We geven de uren, minuten en seconden door
-        renderFace(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+        App::renderFace(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
     }
 }
 
@@ -442,7 +380,7 @@ void App::updateDataPaneelVandaag()
 
     datSpr1.setTextFont(2);
     datSpr1.setTextColor(TFT_SKYBLUE);
-    int bft = getBeaufort(state.weather.wind_speed);
+    int bft = App::getBeaufort(state.weather.wind_speed);
     datSpr1.drawString(String(bft) + " Bft", kX, kY + kR + 18);
 
     // --- 4. EXTRA INFO ---
@@ -478,12 +416,12 @@ void App::updateDataPaneelVandaag()
     datSpr1.setTextDatum(BL_DATUM); // Bottom Left
     datSpr1.setTextColor(TFT_GOLD);
     char baroBuffer[20];
-    datSpr1.drawString(getBaroText(baroBuffer, sizeof(baroBuffer)), xMidden + 12, yMidden + 8, 2); // Tekst naast de pijltjes
+    datSpr1.drawString(App::getBaroText(baroBuffer, sizeof(baroBuffer)), xMidden + 12, yMidden + 8, 2); // Tekst naast de pijltjes
 
-    drawWifiIndicator(146, 130, 13);
+    App::drawWifiIndicator(146, 130, 13);
     if (state.env.is_alert_active)
     {
-        drawISOAlert(120, 122, 20, 0, state.env.is_alert_active);
+        App::drawISOAlert(120, 122, 20, 0, state.env.is_alert_active);
     }
 
     // --- 5. DE RELATIEVE HORIZON ---
@@ -789,7 +727,7 @@ void App::drawISOAlert(int x, int y, int size, uint16_t color, bool active)
 void App::drawWeatherIcon(TFT_eSprite &spr, int x, int y, int size, int iconId, bool isDay)
 {
     const unsigned char *bitmap;
-    uint16_t kleur = getIconColor(iconId);
+    uint16_t kleur = App::getIconColor(iconId);
 
     if (size == 80)
     {

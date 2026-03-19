@@ -5,17 +5,6 @@
 
 #include "app_actions.h"
 
-// #include "env_sensors.h"
-// #include "global_data.h"
-// #include "helpers.h"
-// #include <Adafruit_AHTX0.h>
-// #include <Adafruit_BMP280.h>
-// #include <Wire.h>
-// #include <WiFi.h>
-// #include <OneWire.h>
-// #include <DallasTemperature.h>
-// #include <Preferences.h>
-
 // Instanties
 Adafruit_AHTX0 aht;
 Adafruit_BMP280 bmp;

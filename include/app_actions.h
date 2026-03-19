@@ -14,37 +14,19 @@
 
 // Forward declaration: We vertellen de compiler alleen DAT er een 
 // klasse bestaat die TFT_eSprite heet, zonder de hele library te laden.
-class TFT_eSprite; 
 
-// 1. De centrale 'state' struct die de huidige status van de app bijhoudt (zoals sensorwaarden, netwerkstatus, display-instellingen, etc.)
-// #include "clasic_clock.h"  // Voor de klokdata
 
-// #include "daynight.h"      // Voor tijd en helderheid
-// #include "display_logic.h" // Voor ticker en panelen
-// #include "env_sensors.h"   // Voor BME/AHT sensoren
-
-// #include "helpers.h"       // Voor setupDisplay, updateClock, etc.
-// #include "leeftijd_calc.h" // Voor het berekenen van leeftijd en ongewone weetjes op basis van geboortedatum
-// #include "network_logic.h" // Voor WiFi en OTA setup
-
-// #include "storage_logic.h" // Voor NVS opslag
-// #include "weather_logic.h" // Voor OWM data
-#include "web_config.h"    // Voor de webserver en captive portal tijdens setup mode
 #include "config.h"        // Voor pinnen en constanten
 #include "global_data.h"   // Voor toegang tot 'state'
 #include "secret.h"        // Voor WiFi credentials
 #include "driver/ledc.h" // Voor PWM controle van de backlight
 
-
-
 #include "bitmaps/weatherIcons40.h" // Voor de kleine weer-icoontjes in het 'vandaag' paneel
 #include "bitmaps/weatherIcons68.h" // Voor de grotere weer-icoontjes in het 'forecast' paneel
 #include "bitmaps/BootImages.h"     // Voor de opstart- en foutafbeeldingen
 
-// 2. De functies die in de loop() en setup() worden aangeroepen, zodat we een centrale plek hebben voor alle 'acties' die de app kan uitvoeren.
 #include <Arduino.h>
 #include <ArduinoJson.h>
-// #include <ArduinoOTA.h>
 #include <Preferences.h>
 #include <time.h>
 #include <WiFi.h>
@@ -66,13 +48,10 @@ class TFT_eSprite;
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-// // 1. Hardware instanties (MOETEN hier gedefinieerd worden)
-// TFT_eSPI tft = TFT_eSPI();
-// TFT_eSprite clkSpr = TFT_eSprite(&tft);
-// TFT_eSprite datSpr1 = TFT_eSprite(&tft);
-// TFT_eSprite datSpr2 = TFT_eSprite(&tft);
-// TFT_eSprite datSpr3 = TFT_eSprite(&tft);
-// TFT_eSprite tckSpr = TFT_eSprite(&tft);
+class TFT_eSprite; 
+extern TFT_eSPI tft;
+extern TFT_eSprite clkSpr, datSpr1, datSpr2, datSpr3, tckSpr;
+
 
 namespace App
 {
@@ -84,6 +63,22 @@ namespace App
     String getBirthdaysRaw();
     std::vector<BirthdayEntry> getSortedBirthdays(int limit); // Voor toegang tot de gesorteerde verjaardagslijst, bijvoorbeeld in de display logic
     extern std::vector<ActiveBirthday> currentBirthdays;             // We slaan alleen de verjaardag van 'vandaag' of 'binnenkort' op in RAM
+
+    // classic_clock.cpp
+    void updateClock();
+    void getCoord(int16_t x, int16_t y, float* xp, float* yp, int16_t r, float a);
+    void renderFace(int h, int m, int s);
+
+    // storage_logic.cpp
+    void initStorage();
+    void loadDisplaySettings();
+    void saveDisplaySettings();
+    void loadNetworkConfig();
+    void saveNetworkConfig();
+    void loadOMWConfig();
+    void saveOMWConfig();
+    void loadWeatherCache();
+    void saveWeatherCache();
 
     // daynight.cpp
     void updateDateTimeStrings();
@@ -103,6 +98,9 @@ namespace App
     void startAccessPoint();
     void stopSetupMode();
 
+    // web_config.cpp
+    void initWebServer();
+
     // setup_manager.cpp
     void drawMonitorWifi(int x, int y, int h);
     void drawMonitorAlert(int x, int y, int size, uint16_t color, bool unused);
@@ -110,26 +108,22 @@ namespace App
     void drawSystemMonitor();
     void haltSystemWithInstruction();
     void showNetworkInfo();
-    void showSetupInstructionPanel();
 
     //weather_logic.cpp
     void manageWeatherUpdates();
     bool fetchWeather(bool checkOnly = false);
-    // void saveWeatherCache();
-    // void loadWeatherCache();
-    bool forceFirstWeatherUpdate();
 
     // env_sensors.cpp
     bool setupSensors();
     void handleSensors();
     void updateBaroTrend();
-    // void manageSensorUpdates();
-    // void readBME280();
-    // void readAHT20();
-    // void readDS18B20();
-
 
     // display_logic.cpp - helpers.cpp
+
+    uint16_t getIconColor(int iconId);
+    String getWindRoos(int graden);
+    int getBeaufort(float ms);
+    const char *getBaroText(char *buffer, size_t bufferSize);
 
     void vulBootSegmenten();
     void vulAlertSegmenten();
@@ -173,13 +167,5 @@ namespace App
     void handleTouchLadder();
     void setupDisplay();
     void updateClock();
-
-    // String getWindRoos(int graden);
-    // int getBeaufort(float ms);
-    // uint16_t getIconColor(int conditionCode);
-
-
-    
-
 
 }
