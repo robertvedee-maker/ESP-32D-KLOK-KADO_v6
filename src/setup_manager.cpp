@@ -82,6 +82,7 @@ void App::drawSetupModeActive()
 {
     // Bepaal de huidige situatie
     int currentStatus;
+    
     if (state.network.web_server_active && WiFi.status() == WL_CONNECTED)
     {
         currentStatus = 2; // Scenario A: Beheer (via eigen WiFi)

@@ -211,6 +211,7 @@ void loop()
         App::manageTimeFunctions();
         App::manageEasterEggTimer();
         App::updateBaroTrend();
+        App::checkDailyTriggers();
         lastTenSecondTick = millis();
     }
 

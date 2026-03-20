@@ -28,6 +28,33 @@ uint16_t App::getIconColor(int conditionCode)
     return TFT_LIGHTGREY;  // Bewolkt/Rest
 }
 
+uint16_t App::getBirthdayColor(int leeftijd, char gender) 
+{
+    // 1. Check op Kroonjaren (Prioriteit boven gender)
+    if (leeftijd == 1 || leeftijd == 18 || leeftijd == 21 || 
+        leeftijd == 50 || leeftijd == 75 || leeftijd == 100) {
+        return TFT_GOLD; // Goud (0xFBE0)
+    }
+    
+    // 2. Check op Pensioenleeftijd
+    if (leeftijd >= 65 && leeftijd <= 68) {
+        return TFT_GREEN;
+    }
+
+    // 3. Check op Mijlpalen
+    if (leeftijd == 12 || leeftijd == 16 || leeftijd == 25 || 
+        leeftijd == 40 || leeftijd == 60) {
+        return TFT_ORANGE;
+    }
+
+    // 4. Standaard op basis van gender
+    if (gender == 'V' || gender == 'v') return TFT_PINK;
+    if (gender == 'M' || gender == 'm') return TFT_SKYBLUE;
+
+    return TFT_WHITE; // Fallback
+}
+
+
 // Windroos en Beaufort schaal
 String App::getWindRoos(int graden)
 {
@@ -429,7 +456,7 @@ void App::updateDataPaneelVandaag()
     if (!getLocalTime(&timeinfo))
         return;
 
-    int tlX_center = 85, tlY = 118;
+    int tlX_center = 85 / 2, tlY = 118;
     float pixelsPerUur = Config::distance_per_hour; // Eventueel SECRET_HORIZON_PIXELS_PER_HOUR uit config
     uint16_t shadowCol = state.env.is_night_mode ? 0x2104 : TFT_BLACK;
     uint16_t lineCol = state.env.is_night_mode ? 0x2104 : TFT_DARKGREY; // Kleur van de horizonlijn (matcht met de nachtmodus)
@@ -482,23 +509,25 @@ void App::updateDataPaneelVandaag()
     {
         // datSpr1.fillCircle(xMaanOnder, tlY + 1, 4, TFT_CYAN);
         // 1. De basis (volledige maan in goud/wit)
-        datSpr1.fillCircle(xMaanOnder, tlY, r, TFT_SILVER);
+        datSpr1.fillCircle(xMaanOnder, tlY + 1, r, TFT_SILVER);
 
         // 2. De schaduw (vormt de fase)
         if (phase < 0.5)
         {
             // Wassend: schaduw schuift van rechts naar links
             int offset = map(phase * 1000, 0, 500, r * 2, 0);
-            datSpr1.fillCircle(xMaanOnder + offset, tlY + 1, r - 2, shadowCol);
+            datSpr1.fillCircle(xMaanOnder + offset, tlY + 2, r - 2, shadowCol);
             datSpr1.drawFastHLine(xMaanOnder + offset - (r - 2), tlY + 1, (int)((r - 1) * 2), lineCol); // Versterk de schaduw met een lijn
         }
         else
         {
             // Afnemend: schaduw schuift van links naar rechts
             int offset = map(phase * 1000, 500, 1000, 0, r * 2);
-            datSpr1.fillCircle(xMaanOnder - offset, tlY + 1, r - 2, shadowCol);
+            datSpr1.fillCircle(xMaanOnder - offset, tlY + 2, r - 2, shadowCol);
             datSpr1.drawFastHLine(xMaanOnder - offset - (r - 2), tlY + 1, (int)((r - 1) * 2), lineCol); // Versterk de schaduw met een lijn
         }
+        datSpr1.fillRect(xMaanOnder - r, tlY + 3, r * 2, r, TFT_BLACK); // Extra versterking van de maanondergang (alsof de maan in de horizon zakt)
+        
     }
 
     // Zon op en onder tekenen als ze binnen het zichtbare bereik vallen (0-170 pixels)
@@ -515,19 +544,21 @@ void App::updateDataPaneelVandaag()
             datSpr1.drawString(String(state.env.sunrise_str), xZonOp, tlY - 5);
         }
     }
-    if (xZonOnder > 85 && xZonOnder < 170)
+    if (xZonOnder > tlX_center && xZonOnder < 170)
     {
         datSpr1.fillCircle(xZonOnder, tlY + 1, r, TFT_ORANGE);
+        datSpr1.drawFastHLine(xZonOnder - (r * 2), tlY + 1, r * 4, TFT_ORANGE); // Horizonlijn versterken
+        datSpr1.fillRect(xZonOnder - r, tlY + 3, r * 2, r, TFT_BLACK); // Zonsondergang iets meer benadrukken door het te halveren met zwart (alsof de zon in de horizon zakt)
         datSpr1.setTextDatum(BC_DATUM);
         datSpr1.setTextColor(TFT_LIGHTGREY);
         datSpr1.setTextFont(1);
-        if (xZonOnder > 95)
+        if (xZonOnder > tlX_center + 12)
         {
             datSpr1.drawString(String(state.env.sunset_str), xZonOnder, tlY - 5);
         }
     }
 
-    datSpr1.fillTriangle(tlX_center, tlY - 2, tlX_center - 4, tlY - 8, tlX_center + 4, tlY - 8, TFT_WHITE);
+    datSpr1.fillTriangle(tlX_center, tlY - 2, tlX_center - 4, tlY - 8, tlX_center + 4, tlY - 8, TFT_GOLD);
 }
 
 // --- UPDATE FUNCTIE VOOR HET VOORSPELLINGS-PANEEL (3 DAGEN) ---
@@ -824,12 +855,14 @@ void App::drawVerjaardagsKalender(TFT_eSprite &spr)
     datSpr1.setTextFont(2);
     for (auto &b : lijst)
     {
+        uint16_t bDayColor = App::getBirthdayColor(b.nieuweLeeftijd, b.gender);
         datSpr1.setTextDatum(TL_DATUM);
         datSpr1.setTextColor(TFT_WHITE);
         datSpr1.drawString(b.naam, 10, y);
 
         datSpr1.setTextDatum(TR_DATUM);
-        datSpr1.setTextColor(0x7BEF); // Lichtgrijs/blauw
+        // datSpr1.setTextColor(0x7BEF); // Lichtgrijs/blauw
+        datSpr1.setTextColor(bDayColor);
         // Toon datum en leeftijd: "12/03 (42j)"
         char info[32];
         snprintf(info, sizeof(info), "%02d/%02d (%dj)", b.dag, b.maand, b.nieuweLeeftijd);
@@ -840,6 +873,26 @@ void App::drawVerjaardagsKalender(TFT_eSprite &spr)
 }
 
 // ---  HARDWARE INTERACTIE FUNCTIES ---
+
+void App::checkDailyTriggers() {
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) return; // Wacht tot NTP tijd heeft
+
+    // Als de dag van de maand anders is dan de laatste keer...
+    if (timeinfo.tm_mday != state.env.lastUpdateDay) {
+        Serial.println("[SYSTEM] Nieuwe dag gedetecteerd, verjaardagen verversen...");
+        
+        // 1. Voer de database scan uit en vul de state
+        App::updateGlobalBirthdayState(); 
+        
+        // 2. Update de 'lastUpdateDay' naar vandaag
+        state.env.lastUpdateDay = timeinfo.tm_mday;
+        
+        // Optioneel: forceer een ticker refresh zodat de nieuwe jarige direct verschijnt
+        state.display.force_ticker_refresh = true;
+    }
+}
+
 void App::handleHardware()
 {
     // 1. TOUCH SENSOR (GPIO 13)
@@ -929,10 +982,13 @@ void App::handleTouchLadder()
             // Als de server aan staat (Setup of Beheer), sluiten we nu ALTIJD alles af
             if (state.network.web_server_active || state.network.is_setup_mode)
             {
-                // deactivateWiFiAndServer();
-                App::powerDownWiFi();
-                App::finalizeUIAfterSetup();
-                state.network.is_setup_mode = false;
+                // App::powerDownWiFi();
+                // App::finalizeUIAfterSetup();
+                // state.network.is_setup_mode = false;
+                // state.network.web_server_active = false;
+                state.network.pending_restart = true; // Forceren van een herstart om alle systeemmonitor variabelen netjes te resetten
+                return; 
+                
             }
             else if (state.display.show_system_monitor)
             {
@@ -966,6 +1022,7 @@ void App::handleTouchLadder()
         else if (eindDuur >= 5000 && eindDuur < 8000)
         {
             state.display.show_calendar = !state.display.show_calendar;
+            state.display.calendar_needs_update = true;
             if (state.display.show_calendar)
             {
                 state.display.calendar_show_until = millis() + (120 * 1000); // 2 minuten

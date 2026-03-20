@@ -141,14 +141,14 @@ void App::activateWiFiAndServer()
     // 1. Ruim OUDE resten op (Gooi de oude rommel uit de Heap)
     server.end();
     MDNS.end();
-    delay(100); // Geef de stack even ademruimte
+    delay(500); // Geef de stack even ademruimte
 
     state.network.server_start_time = millis(); // De klok begint te tikken
 
     // 2. Start WiFi (alleen als het echt uit staat)
     if (WiFi.status() != WL_CONNECTED)
     {
-        setupWiFi();
+        App::setupWiFi();
     }
 
     // 1. Zorg dat WiFi aanstaat
@@ -177,9 +177,11 @@ void App::activateWiFiAndServer()
         }
 
         // 4. Start de server pas als de rest staat
-        initWebServer(); // Zorg dat hier GEEN mDNS.begin meer in staat!
+       
         server.begin();
+        delay(500); // Geef de stack even ademruimte
         state.network.web_server_active = true;
+        App::initWebServer(); // Zorg dat hier GEEN mDNS.begin meer in staat!
         Serial.printf("[NET] Config-server is nu ACTIEF\n");
     }
 }

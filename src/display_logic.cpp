@@ -2,7 +2,6 @@
  * (c)2026 R van Dorland - Licensed under MIT License
  */
 
-
 #include "app_actions.h"
 
 // 1. Hardware instanties (MOETEN hier gedefinieerd worden)
@@ -92,6 +91,17 @@ void App::vulAlertSegmenten()
 
 void App::vulNormalSegmenten()
 {
+
+    TickerSegment sVerjaardag;
+    sVerjaardag.color = state.env.ticker_color;
+    if (state.display.birthday_upcoming && state.display.birthday_days_until == 0)
+    {
+        const char *titel = (state.display.birthday_gender == 'V' || state.display.birthday_gender == 'v') ? "Jarige Jet" : "Jarige Job";
+        snprintf(sVerjaardag.text, sizeof(sVerjaardag.text), " HOERA! %s is de %s! ", state.display.birthday_name.c_str(), titel);
+        makeUpperCase(sVerjaardag.text);
+        sVerjaardag.width = tckSpr.textWidth(sVerjaardag.text);
+        tickerSegments.push_back(sVerjaardag);
+    }
 
     TickerSegment sWeer;
     sWeer.color = state.env.ticker_color;
@@ -416,9 +426,11 @@ void App::manageDataPanels()
     }
 
     if (state.display.show_calendar)
-    {
-        // We zitten in de verjaardagskalender modus: Toon deze zonder gedoe
+    {// We zitten in de verjaardagskalender modus: Toon deze zonder gedoe
+        if (state.display.calendar_needs_update) {
         App::drawVerjaardagsKalender(datSpr1);
+        state.display.calendar_needs_update = false;
+        }
         datSpr1.pushSprite(Config::data_x, Config::data_y);
         return;
     }

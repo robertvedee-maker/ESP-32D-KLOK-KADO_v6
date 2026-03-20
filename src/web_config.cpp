@@ -1,7 +1,7 @@
 // #include "web_config.h"
-// #include "global_data.h"
-// #include <Preferences.h>
-// #include <LittleFS.h>
+#include "global_data.h"
+#include <Preferences.h>
+#include <LittleFS.h>
 
 #include "app_actions.h"
 
@@ -129,12 +129,13 @@ void App::initWebServer()
         }
 
         String html = "<html><head>";
-        html += "<meta http-equiv='refresh' content='10;url=" + redirectURL + "'>";
+        html += "<meta http-equiv='refresh' content='20;url=" + redirectURL + "'>";
         html += "<script>window.history.replaceState({}, '', '/');</script>";
         html += "<style>body{background:#121212;color:white;text-align:center;padding-top:50px;}</style></head>";
         html += "<body><h1>Opgeslagen!</h1>";
         html += "<p>De Kado-Klok verbindt nu met: <b>" + redirectURL + "</b></p>";
-        html += "<p>Je wordt over 10 seconden teruggebracht...</p></body></html>";
+        // html += "<p>Je wordt over 10 seconden teruggebracht...</p></body></html>";
+        html += "<p>Als je nog iets anders wil veranderen start de hele procedure dan opnieuw op. DE KLOK IS HERSTART!</p></body></html>";
 
         request->send(200, "text/html", html);
 
@@ -152,6 +153,7 @@ void App::initWebServer()
               {
 
         // 2. Wis de fysieke opslag (Flash)
+        LittleFS.format();
         Preferences prefs;
         
         // Gebruik hier de namespace die je ook in initStorage() gebruikt!

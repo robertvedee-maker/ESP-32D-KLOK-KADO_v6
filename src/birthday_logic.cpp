@@ -8,6 +8,12 @@
 
 #include "app_actions.h"
 
+
+
+// Interne variabelen (alleen zichtbaar in dit bestand)
+static unsigned long lastRedraw = 0;
+const unsigned long REDRAW_INTERVAL = 1000; // 1 FPS is genoeg voor setup
+
 // Schrijf de ruwe tekst uit de textarea naar LittleFS
 void App::saveBirthdays(String rawText) {
     File file = LittleFS.open("/birthdays.txt", "w");
@@ -117,7 +123,7 @@ std::vector<BirthdayEntry> App::getSortedBirthdays(int limit = 5)
         // We proberen nu 4 waarden te lezen: J, M, D en de gender letter
         sscanf(datePart.c_str(), "%d-%d-%d,%c", &b.jaar, &b.maand, &b.dag, &b.gender);
 
-        Serial.printf("[BIRTHDAYS] Gelezen: %s, %d-%02d-%02d, Gender: %c\n", b.naam.c_str(), b.jaar, b.maand, b.dag, b.gender);
+        // Serial.printf("[BIRTHDAYS] Gelezen: %s, %d-%02d-%02d, Gender: %c\n", b.naam.c_str(), b.jaar, b.maand, b.dag, b.gender);
         
         // De check of de datum klopt (minimaal 3 waarden gelezen)
         if (b.jaar < 1900) continue; // Simpele validatie
@@ -153,4 +159,22 @@ std::vector<BirthdayEntry> App::getSortedBirthdays(int limit = 5)
     if (alleVerjaardagen.size() > limit)
         alleVerjaardagen.resize(limit);
     return alleVerjaardagen;
+}
+
+void App::updateGlobalBirthdayState() {
+    // We halen de gesorteerde lijst op (zoals we eerder maakten)
+    auto lijst = App::getSortedBirthdays(1); 
+
+    if (!lijst.empty() && lijst[0].dagenTeGaan <= 5) {
+        state.display.birthday_upcoming = true;
+        state.display.birthday_days_until = lijst[0].dagenTeGaan;
+        state.display.birthday_gender = lijst[0].gender;
+        state.display.birthday_name = lijst[0].naam;
+        Serial.printf("[BDAY] Match gevonden: %s (%c)\n", lijst[0].naam.c_str(), lijst[0].gender);
+    } else {
+        state.display.birthday_upcoming = false;
+        state.display.birthday_days_until = -1;
+        state.display.birthday_gender = '?';
+        state.display.birthday_name = "";
+    }
 }

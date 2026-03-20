@@ -121,6 +121,7 @@ struct EnvData
     float baro_ref_3h = 1013.25; // De referentie voor de trend, opgeslagen in NVS en bijgewerkt elke 3 uur
 
     // Gezondheidsscore en gerelateerde kleuren/statussen
+    int lastUpdateDay = -1;
     bool is_night_mode = false;
     bool is_alert_active = false;
     uint16_t ticker_color = TFT_LIGHTGREY;         // Neutraal: Lichtgrijs
@@ -193,10 +194,14 @@ struct DisplaySettings
     bool force_ticker_refresh = false;          // Vlag om direct van rechts te starten
 
     // Verjaardagskalender
+    bool calendar_needs_update = true; // Zet deze op true in je touch-ladder bij 5-8 sec
+
     bool show_calendar = false;
     unsigned long calendar_show_until = 2 * 60 * 1000; // Tot wanneer de kalender getoond moet worden (2 minuten na activeren)
     bool birthday_upcoming = false; // Huidige status of er een verjaardag binnen 5 dagen is, voor snelle checks in de klok
+    int birthday_days_until = -1; // Dagen tot de eerstvolgende verjaardag (voor snelle checks in de klok)
     char birthday_gender = '?'; // Huidige gender van de verjaardag (? = onbekend)
+    String birthday_name = ""; // Huidige naam van de jarige voor de ticker
 
     int ticker_x = 320;
     int total_ticker_width = 0;

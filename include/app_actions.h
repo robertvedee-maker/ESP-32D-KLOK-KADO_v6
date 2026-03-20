@@ -59,6 +59,8 @@ namespace App
     void saveBirthdays(String rawText);
     void updateBirthdayList();
     void updateDailyBirthdayState();
+    void updateGlobalBirthdayState();
+    void checkDefaultBirthdays();
 
     String getBirthdaysRaw();
     std::vector<BirthdayEntry> getSortedBirthdays(int limit); // Voor toegang tot de gesorteerde verjaardagslijst, bijvoorbeeld in de display logic
@@ -121,6 +123,7 @@ namespace App
     // display_logic.cpp - helpers.cpp
 
     uint16_t getIconColor(int iconId);
+    uint16_t getBirthdayColor(int leeftijd, char gender);
     String getWindRoos(int graden);
     int getBeaufort(float ms);
     const char *getBaroText(char *buffer, size_t bufferSize);
@@ -167,5 +170,7 @@ namespace App
     void handleTouchLadder();
     void setupDisplay();
     void updateClock();
+
+    void checkDailyTriggers();
 
 }

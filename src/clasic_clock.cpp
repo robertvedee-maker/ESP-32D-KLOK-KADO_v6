@@ -6,11 +6,10 @@
 // #include "clasic_clock.h"
 #include "app_actions.h"
 
-
 // Forward declaration
 // void drawPartyPopper(TFT_eSprite& spr, int x, int y, char gender);
 
-extern TFT_eSPI tft; // Verwijs naar de tft in helpers.cpp
+extern TFT_eSPI tft;       // Verwijs naar de tft in helpers.cpp
 extern TFT_eSprite clkSpr; // Verwijs naar de sprite in helpers.cpp
 
 // Constanten voor de klok-wiskunde
@@ -22,7 +21,7 @@ extern TFT_eSprite clkSpr; // Verwijs naar de sprite in helpers.cpp
 #define DEG2RAD 0.0174532925
 
 // Functie voor coördinaten berekening
-void App::getCoord(int16_t x, int16_t y, float* xp, float* yp, int16_t r, float a)
+void App::getCoord(int16_t x, int16_t y, float *xp, float *yp, int16_t r, float a)
 {
     float sx1 = cos((a - 90) * DEG2RAD);
     float sy1 = sin((a - 90) * DEG2RAD);
@@ -56,7 +55,8 @@ void App::renderFace(int h, int m, int s)
     constexpr uint32_t dialOffset = CLOCK_R - 14;
     int amPmOffset = (h >= 12) ? 12 : 0;
 
-    for (uint32_t i = 1; i <= 12; i++) {
+    for (uint32_t i = 1; i <= 12; i++)
+    {
         float xp, yp;
         getCoord(CLOCK_R, CLOCK_R, &xp, &yp, dialOffset, i * 30.0);
         clkSpr.drawNumber(i + amPmOffset, xp, yp + 2);
@@ -84,7 +84,10 @@ void App::renderFace(int h, int m, int s)
     snprintf(pBuf, sizeof(pBuf), "%.0f hPa", state.env.press_local);
     clkSpr.drawString(pBuf, CLOCK_R, 95);
 
-    if (state.display.birthday_upcoming) {
+    // In classic_clock.cpp
+    if (state.display.birthday_upcoming && state.display.birthday_days_until == 0)
+    {
+        // We gebruiken nu direct de gender die in de state is opgeslagen
         App::drawPartyPopper(clkSpr, 123, 130, state.display.birthday_gender);
     }
 
