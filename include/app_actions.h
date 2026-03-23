@@ -60,7 +60,7 @@ namespace App
     void updateBirthdayList();
     void updateDailyBirthdayState();
     void updateGlobalBirthdayState();
-    void checkDefaultBirthdays();
+    // void checkDefaultBirthdays();
 
     String getBirthdaysRaw();
     std::vector<BirthdayEntry> getSortedBirthdays(int limit); // Voor toegang tot de gesorteerde verjaardagslijst, bijvoorbeeld in de display logic
@@ -88,8 +88,8 @@ namespace App
     void manageBrightness();
 
     // leeftijd_calc.cpp
-    void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant);
-    bool vulGepersonaliseerdFeitje(char *buffer, size_t bufferSize);
+    void selectEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant);
+    bool createPersoonlijkFeitje(char *buffer, size_t bufferSize);
 
     // network_logic.cpp
     void activateWiFiAndServer();
@@ -106,10 +106,11 @@ namespace App
     // setup_manager.cpp
     void drawMonitorWifi(int x, int y, int h);
     void drawMonitorAlert(int x, int y, int size, uint16_t color, bool unused);
+    void drawNetworkInfo();
     void drawSetupModeActive();
     void drawSystemMonitor();
     void haltSystemWithInstruction();
-    void showNetworkInfo();
+
 
     //weather_logic.cpp
     void manageWeatherUpdates();
@@ -128,35 +129,22 @@ namespace App
     int getBeaufort(float ms);
     const char *getBaroText(char *buffer, size_t bufferSize);
 
-    void vulBootSegmenten();
-    void vulAlertSegmenten();
-    void vulNormalSegmenten();
-    void addSegment(String t, uint16_t c);
-    void updateTickerSegments();
-    void renderTicker();
-    void performTransition(TFT_eSprite *oldSpr, TFT_eSprite *newSpr);
-    void manageDataPanels();
-    void manageEasterEggTimer();
-    void manageAlertTimeout();
-    void manageServerTimeout();
-    void manageStatusLed();
-    void manageTimeFunctions();
     void makeUpperCase(char *str);
     int berekenMinutenTotUpdate();
-    void evaluateSystemSafety();
-    void finalizeUIAfterSetup();
-    void updateTouchLedFeedback(unsigned long duration);
 
-    void updateBirthdayAlertState();
-    void updateDataPaneelAlert();
-    void updateDataPaneelVandaag();
-    void updateDataPaneelForecast();
-    void updateDisplayBrightness(int level);
-    void updateTouchLedFeedback(unsigned long duration);
+    void addTickerSegment(String txt, uint16_t col);
+    void addSegment(String t, uint16_t c);
+    void selectEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant);
+    bool createPersoonlijkFeitje(char *buffer, size_t bufferSize);
+    void performTransition(TFT_eSprite *oldSpr, TFT_eSprite *newSpr);
 
-    void vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int forceVariant);
-    bool vulGepersonaliseerdFeitje(char *buffer, size_t bufferSize);
-
+    void drawBootSegmenten();
+    void drawAlertSegmenten();
+    void drawNormalSegmenten();
+    void drawDataPaneelAlert();
+    void drawDataPaneelVandaag();
+    void drawDataPaneelForecast();
+    void drawRelativeHorizon();
     void drawVerjaardagsKalender(TFT_eSprite &spr);
     void drawPartyPopper(TFT_eSprite &spr, int x, int y, char gender);
     void drawWeatherIcon(TFT_eSprite &spr, int x, int y, int size, int iconId, bool isDay);
@@ -164,13 +152,26 @@ namespace App
     void drawWifiIndicator(int x, int y, int h);
     void drawQRCodeOnTFT(const char *data, int x, int y, int scale);
 
+    void manageDataPanels();
+    void manageEasterEggTimer();
+    void manageAlertTimeout();
+    void manageServerTimeout();
+    void manageStatusLed();
+    void manageTimeFunctions();
+
+    void checkDailyTriggers();
+    void evaluateSystemSafety();
+    void finalizeUIAfterSetup();
     void finalizeSetupAndShowDashboard();
-    void addTickerSegment(String txt, uint16_t col);
+
     void handleHardware();
     void handleTouchLadder();
     void setupDisplay();
+    void renderTicker();
+    void updateTickerSegments();
     void updateClock();
-
-    void checkDailyTriggers();
+    void updateBirthdayAlertState();
+    void updateDisplayBrightness(int level);
+    void updateTouchLedFeedback(unsigned long duration);
 
 }

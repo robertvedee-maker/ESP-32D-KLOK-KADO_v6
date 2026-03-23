@@ -8,3 +8,5 @@ include/_*.h
 *.txt
 src/_copy-paste.cpp
 src/web_config.cp_
+*.docx
+*.new*

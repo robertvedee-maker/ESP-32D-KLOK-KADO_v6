@@ -74,6 +74,7 @@ namespace Config
 
     constexpr int alert_timeout = 2 * 60 * 1000; // ms dat een Alert actief blijft in de ticker voordat hij automatisch terugkeert naar de normale status
 
+
     constexpr float system_temp_threshold = 72;  // °C waarbij we de buck converter uitschakelen om schade te voorkomen
     constexpr float system_temp_warning = 60;    // °C waarbij we een waarschuwing geven (dmv het ISOAlarm icoon en de backlight dimmen)
     constexpr float system_temp_hysteresis = 55; // °C waarbij we de buck converter weer inschakelen nadat deze is uitgeschakeld vanwege oververhitting
@@ -82,5 +83,5 @@ namespace Config
     // Gebruik: Config::owm_url + state.env.lat + "&lon=" + state.env.lon + "&appid=" + SECRET_OWM_KEY
     constexpr const char *owm_base_url = "http://api.openweathermap.org/data/3.0/onecall?";
     extern bool forceFirstWeatherUpdate; // Zet op 'true' om bij elke herstart direct een weerupdate te forceren (handig voor testen)
-
+    constexpr int weather_timer = 30 * 60 * 1000; // ms tussen automatische weerupdates (30 minuten)
 }

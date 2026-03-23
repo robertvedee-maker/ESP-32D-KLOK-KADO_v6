@@ -77,7 +77,7 @@ void setup()
 
     // WiFi Setup
     App::setupWiFi();
-    App::showNetworkInfo(); // Laat het IP-adres kort op het scherm zien
+    App::drawNetworkInfo(); // Laat het IP-adres kort op het scherm zien
 
     // Tijd configureren (NTP)
     configTzTime(SECRET_TZ_INFO, SECRET_NTP_SERVER);

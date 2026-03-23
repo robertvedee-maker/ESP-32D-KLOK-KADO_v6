@@ -72,7 +72,9 @@ struct DailyForecast
 // --- SUBSYSTEM STATES ---
 struct WeatherData
 {
+    bool key_is_valid = false; // Wordt ingesteld na het valideren van de OWM-sleutel, voor snellere checks
     bool data_is_fresh = false; // Wordt pas true na de ALLEREERSTE geslaagde fetchWeather()
+
 
     uint32_t last_update_epoch = 0;
     float temp = 0.0, feels_like = 0.0, humidity = 0.0, pressure = 0.0, dew_point = 0.0;
@@ -96,9 +98,11 @@ struct WeatherData
         float temp_morn;
         float moon_phase;
         uint32_t sun_rise;
+        uint32_t sun_rise_tomorrow; // Toegevoegd veld voor de sunrise van morgen
         uint32_t sun_set;
         uint32_t moon_rise;
         uint32_t moon_set;
+        uint32_t moon_set_tomorrow; // Toegevoegd veld voor de moonset van morgen
     } today;
 
     // Forecast voor de komende dagen
@@ -139,8 +143,8 @@ struct EnvData
 
     char alert_message[128] = "";
 
-    double sunrise_local = 0.0, sunset_local = 0.0, moonrise_local = 0.0, moonset_local = 0.0;
-    char sunrise_str[6] = "00:00", sunset_str[6] = "00:00";
+    double sunrise_local = 0.0, sunrise_next_local = 0.0, sunset_local = 0.0, moonrise_local = 0.0, moonset_local = 0.0, moonset_next_local = 0.0;
+    char sunrise_str[6] = "00:00", sunset_str[6] = "00:00", sunrise_next_str[6] = "00:00", moonrise_str[6] = "00:00", moonset_str[6] = "00:00", moonset_next_str[6] = "00:00";
     char current_time_str[10] = "00:00:00", current_date_str[14] = "ZO 01-01-2024";
     float raw_temp_local = 0.0; // De ruwe temperatuur van de AHT20, voor interne checks
     float temp_local = 0.0;
@@ -179,6 +183,7 @@ struct NetworkState
     bool web_server_active = false; // Staat de webserver aan?
     // unsigned long server_stop_at = 0; // Tijdstip waarop de server automatisch uitgaat (na setup)
     unsigned long server_start_time = 0;
+    int last_owm_http_code = 0; // Voor debuggen van fetchWeather() resultaten
 };
 
 struct DisplaySettings

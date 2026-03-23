@@ -7,7 +7,7 @@
 
 #include <esp_task_wdt.h>
 
-void saveWeatherCache();
+// void saveWeatherCache();
 
 void App::manageWeatherUpdates()
 {
@@ -19,6 +19,12 @@ void App::manageWeatherUpdates()
     {
         // Serial.printf("[WEATHER-MGMT] Nog te vroeg voor de volgende check...\n");
         return;
+    }
+
+    // 1. VOORWAARDEN CHECK
+    if (state.network.owm_key.length() < 10)
+    {
+        return; // Sleutel is te kort, waarschijnlijk niet ingesteld. We stoppen hier en proberen later opnieuw.
     }
 
     // 2. DE GRENDEL: Zodra we hier voorbij zijn, gaat de poort direct op slot voor 60 sec.
@@ -79,16 +85,16 @@ void App::manageWeatherUpdates()
 
 bool App::fetchWeather(bool checkOnly)
 {
-    // 1. VOORWAARDEN CHECK
-    if (state.network.owm_key.length() < 10)
-    {
-        return false;
-    }
+    // // 1. VOORWAARDEN CHECK
+    // if (state.network.owm_key.length() < 10)
+    // {
+    //     return false;
+    // }
 
     // 2. TIJD & RATE LIMIT CHECK
-    time_t nu = time(nullptr);
+    time_t nuEpoch = time(nullptr);
     Preferences prefs;
-    prefs.begin("config", true);
+    prefs.begin("config", true); // Read-only openen van NVS
     time_t laatsteUpdate = (time_t)prefs.getULong("last_owm_epoch", 0);
     prefs.end();
 
@@ -100,12 +106,12 @@ bool App::fetchWeather(bool checkOnly)
     // B. OF de tijd nog niet gesynchroniseerd is (nu < 100000) -> Eerste run na boot
     // C. OF de verstreken tijd groter is dan het interval
 
-    bool tijdOm = (laatsteUpdate == 0) || (nu - laatsteUpdate >= interval);
+    bool tijdOm = (laatsteUpdate == 0) || (nuEpoch - laatsteUpdate >= interval);
 
     // Als de tijd nog op 1970 staat (net na boot),
     // kunnen we de 'nu - laatsteUpdate' niet vertrouwen.
     // In dat geval laten we hem door als het de eerste keer is.
-    if (nu < 1000000)
+    if (nuEpoch < 1000000)
     {
         tijdOm = true;
     }
@@ -146,6 +152,7 @@ bool App::fetchWeather(bool checkOnly)
     }
 
     int httpCode = http.GET();
+    state.network.last_owm_http_code = httpCode; // Opslaan voor debuggen
     if (httpCode != HTTP_CODE_OK)
     {
         http.end();
@@ -197,8 +204,8 @@ bool App::fetchWeather(bool checkOnly)
     state.weather.description = cur["weather"][0]["description"] | "--";
     state.weather.current_icon = cur["weather"][0]["id"] | 800;
 
-    state.weather.last_update_epoch = time(nullptr);
-    saveWeatherCache(); // Snel opslaan in NVS
+    // state.weather.last_update_epoch = time(nullptr);
+    // saveWeatherCache(); // Snel opslaan in NVS
 
     // --- ALERTS ---
     if (doc["alerts"].size() > 0)
@@ -217,21 +224,22 @@ bool App::fetchWeather(bool checkOnly)
 
     // --- GEGEVENS VOOR VANDAAG (Dag 0 uit de forecast sectie) ---
 
-
     int h = timeinfo->tm_hour;
 
     auto today = doc["daily"][0]; // Default: vandaag
-    
-    if (h >= 17 || h < 1)
-    {
-            today = doc["daily"][1]; // <--- Belangrijk: Index 1 is morgen!
-            strlcpy(state.weather.today.today_tomorrow_str, "MORGEN", sizeof(state.weather.today.today_tomorrow_str));
-    }
-    else
-    {
-            strlcpy(state.weather.today.today_tomorrow_str, "VANDAAG", sizeof(state.weather.today.today_tomorrow_str));
-    }
-    Serial.printf("[WEATHER] We updaten de '%s' data op basis van het uur (%02d)...\n", state.weather.today.today_tomorrow_str, h); 
+
+    // if (h >= 17 || h < 1)
+    // {
+    //         today = doc["daily"][1]; // <--- Belangrijk: Index 1 is morgen!
+    //         strlcpy(state.weather.today.today_tomorrow_str, "MORGEN", sizeof(state.weather.today.today_tomorrow_str));
+    // }
+    // else
+    // {
+    //         strlcpy(state.weather.today.today_tomorrow_str, "VANDAAG", sizeof(state.weather.today.today_tomorrow_str));
+    // }
+    // Serial.printf("[WEATHER] We updaten de '%s' data op basis van het uur (%02d)...\n", state.weather.today.today_tomorrow_str, h);
+
+    strlcpy(state.weather.today.today_tomorrow_str, "VANDAAG", sizeof(state.weather.today.today_tomorrow_str));
 
     // En dan de waarden overzetten naar je state:
     strlcpy(state.weather.today.summary, today["summary"] | "--", sizeof(state.weather.today.summary));
@@ -241,10 +249,12 @@ bool App::fetchWeather(bool checkOnly)
     state.weather.today.temp_eve = today["temp"]["eve"] | 0.0f;
     state.weather.today.temp_morn = today["temp"]["morn"] | 0.0f;
     state.weather.today.sun_rise = today["sunrise"] | 0;
+    state.weather.today.sun_rise_tomorrow = doc["daily"][1]["sunrise"] | 0; // We slaan de sunrise van morgen ook alvast op om te kunnen beslissen wanneer we moeten switchen naar de "MORGEN" data
     state.weather.today.sun_set = today["sunset"] | 0;
     state.weather.today.moon_phase = today["moon_phase"] | 0.0f;
     state.weather.today.moon_rise = today["moonrise"] | 0;
     state.weather.today.moon_set = today["moonset"] | 0;
+    state.weather.today.moon_set_tomorrow = doc["daily"][1]["moonset"] | 0; // We slaan de moonset van morgen ook alvast op om te kunnen beslissen wanneer we moeten switchen naar de "MORGEN" data
 
     // --- FORECAST (3 DAGEN) ---
     for (int i = 0; i < 3; i++)
@@ -259,15 +269,28 @@ bool App::fetchWeather(bool checkOnly)
     }
 
     // 6. AFHANDELING & OPSLAAN
-    state.weather.last_update_epoch = nu;
     state.weather.data_is_fresh = true;
-    saveWeatherCache();
-    // updateTickerSegments(); -- We laten de ticker zelf beslissen wanneer hij wil verversen, voor soepelheid
+    state.weather.last_update_epoch = time(nullptr);
+    App::saveWeatherCache(); // Snel opslaan in NVS
+    App::updateTickerSegments();
 
-    // Sla de echte Unix-tijd op (overleeft reboots en hitte-crashes)
-    prefs.begin("config", false);
-    prefs.putULong("last_owm_epoch", (uint32_t)nu);
-    prefs.end();
+    // Sla de Unix-tijd op (alleen hier openen we de prefs om te schrijven)
+    // Preferences prefs;
+    if (prefs.begin("config", false))
+    { // false = read/write
+        prefs.putULong("last_owm_epoch", (uint32_t)nuEpoch);
+        prefs.end();
+        Serial.println("[OWM] Success: Data verwerkt en timestamp opgeslagen.");
+    }
+    else
+    {
+        Serial.println("[OWM] FOUT: Kon de timestamp niet opslaan in NVS.");
+    }
+
+    // // Sla de echte Unix-tijd op (overleeft reboots en hitte-crashes)
+    // prefs.begin("config", false);
+    // prefs.putULong("last_owm_epoch", (uint32_t)nuEpoch);
+    // prefs.end();
 
     state.network.is_updating = false;
     Config::forceFirstWeatherUpdate = false; // Reset de forceer-vlag na succes

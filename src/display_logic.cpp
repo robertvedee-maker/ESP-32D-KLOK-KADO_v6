@@ -23,7 +23,7 @@ void App::makeUpperCase(char *str)
 }
 
 //          --- LOGICA VOOR HET VULLEN VAN DE TICKER-SEGMENTEN (BOOT, ALERT, NORMAL) ---
-void App::vulBootSegmenten()
+void App::drawBootSegmenten()
 {
     TickerSegment s;
     s.color = TFT_YELLOW;
@@ -34,7 +34,7 @@ void App::vulBootSegmenten()
     {
         char leeftijdBuf[128];
         // We roepen je calc-functie aan met forceVariant 0
-        App::vulEasterEggTekst(leeftijdBuf, sizeof(leeftijdBuf), gD, gM, gJ, 0);
+        App::selectEasterEggTekst(leeftijdBuf, sizeof(leeftijdBuf), gD, gM, gJ, 0);
 
         snprintf(s.text, sizeof(s.text), "WELKOM %s! EVEN GEDULD VOOR DE WEER-UPDATE (ong. 1 min)... EEN FIJTJE: %s   ***   ",
                  state.user.name.c_str(), leeftijdBuf);
@@ -50,7 +50,7 @@ void App::vulBootSegmenten()
     tickerSegments.push_back(s);
 }
 
-void App::vulAlertSegmenten()
+void App::drawAlertSegmenten()
 {
     // PRIORITEIT: Als force_alert actief is EN er is tekst, toon dan ALLEEN het alarm
     if (state.weather.alert_text.length() > 0)
@@ -89,7 +89,7 @@ void App::vulAlertSegmenten()
     }
 }
 
-void App::vulNormalSegmenten()
+void App::drawNormalSegmenten()
 {
 
     TickerSegment sVerjaardag;
@@ -132,7 +132,6 @@ void App::vulNormalSegmenten()
     TickerSegment sDauwpunt;
     sDauwpunt.color = state.env.ticker_color;
     snprintf(sDauwpunt.text, sizeof(sDauwpunt.text), "| DAUWPUNT: %.1fC",
-             //  state.weather.location.c_str(),
              state.weather.dew_point);
     sDauwpunt.width = tckSpr.textWidth(sDauwpunt.text);
     tickerSegments.push_back(sDauwpunt);
@@ -146,11 +145,29 @@ void App::vulNormalSegmenten()
 
     TickerSegment sBewolking;
     sBewolking.color = state.env.ticker_color;
-    snprintf(sBewolking.text, sizeof(sBewolking.text), "| BEWOLKING: %.d%%",
-             //  state.weather.location.c_str(),
+    snprintf(sBewolking.text, sizeof(sBewolking.text), "| BEWOLKING: %d%%",
              (int)state.weather.clouds);
     sBewolking.width = tckSpr.textWidth(sBewolking.text);
     tickerSegments.push_back(sBewolking);
+
+    TickerSegment sWind;
+    sWind.color = state.env.ticker_color;
+    float speedMs = state.weather.wind_speed / 0.27778f;
+    snprintf(sWind.text, sizeof(sWind.text), "| WIND: %.1f m/s (%s)",
+             speedMs,
+             getWindRoos(state.weather.wind_deg).c_str());
+    sWind.width = tckSpr.textWidth(sWind.text);
+    tickerSegments.push_back(sWind);
+
+    float gustMs = state.weather.wind_gust / 0.27778f;
+    if (gustMs > speedMs + 1.5f)
+    {
+        TickerSegment sGust;
+        sGust.color = state.env.ticker_color;
+        snprintf(sGust.text, sizeof(sGust.text), "| WINDVLAGEN: %.1f m/s", gustMs);
+        sGust.width = tckSpr.textWidth(sGust.text);
+        tickerSegments.push_back(sGust);
+    }
 
     TickerSegment sZicht;
     sZicht.color = state.env.ticker_color;
@@ -164,7 +181,7 @@ void App::vulNormalSegmenten()
     if (state.display.show_easter_egg)
     {
         TickerSegment sEasterEgg;
-        if (App::vulGepersonaliseerdFeitje(sEasterEgg.text, sizeof(sEasterEgg.text)))
+        if (App::createPersoonlijkFeitje(sEasterEgg.text, sizeof(sEasterEgg.text)))
         {
             sEasterEgg.color = TFT_YELLOW;
             sEasterEgg.width = tckSpr.textWidth(sEasterEgg.text);
@@ -247,13 +264,13 @@ void App::updateTickerSegments()
     switch (nieuweMode)
     {
     case MODE_BOOT:
-        App::vulBootSegmenten();
+        App::drawBootSegmenten();
         break;
     case MODE_ALERT:
-        App::vulAlertSegmenten();
+        App::drawAlertSegmenten();
         break;
     case MODE_NORMAL:
-        App::vulNormalSegmenten();
+        App::drawNormalSegmenten();
         break;
     }
 
@@ -443,7 +460,7 @@ void App::manageDataPanels()
         state.display.last_panel_switch = millis(); // Reset de timer
 
         // Teken het paneel statisch zonder transitie-gedoe
-        updateDataPaneelVandaag();
+        drawDataPaneelVandaag();
         datSpr1.pushSprite(Config::data_x, Config::data_y);
         return;
     }
@@ -471,7 +488,7 @@ void App::manageDataPanels()
         if (state.display.show_vandaag)
         {
             // Serial.printf(F(">>> Start wissel naar Forecast\n"));
-            updateDataPaneelForecast();
+            drawDataPaneelForecast();
 
             // STAP B: Korte pauze (10-20ms) zodat de ESP32 de sprite-buffer kan afsluiten
             delay(10);
@@ -482,7 +499,7 @@ void App::manageDataPanels()
         else
         {
             // Serial.printf(F(">>> Start wissel naar Vandaag\n"));
-            updateDataPaneelVandaag();
+            drawDataPaneelVandaag();
 
             // STAP B: Korte pauze (10-20ms) zodat de ESP32 de sprite-buffer kan afsluiten
             delay(10);
@@ -500,14 +517,14 @@ void App::manageDataPanels()
     {
         if (state.display.show_vandaag)
         {
-            updateDataPaneelVandaag();
+            drawDataPaneelVandaag();
             datSpr1.pushSprite(Config::data_x, Config::data_y);
-            // updateDataPaneelAlert();
+            // drawDataPaneelAlert();
             // datSpr3.pushSprite(Config::data_x, Config::data_y);
         }
         else
         {
-            updateDataPaneelForecast();
+            drawDataPaneelForecast();
             datSpr2.pushSprite(Config::data_x, Config::data_y);
         }
     }

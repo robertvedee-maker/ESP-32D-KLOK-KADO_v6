@@ -358,7 +358,7 @@ void App::updateClock()
 }
 
 // --- DATA PANEL UPDATE FUNCTIES ---
-void App::updateDataPaneelVandaag()
+void App::drawDataPaneelVandaag()
 {
     uint16_t TFT_BGD = state.env.is_night_mode ? Config::bg_color_night : Config::bg_color_day;
     uint16_t TFT_GFX = state.env.is_night_mode ? Config::text_color_night : Config::gfx_color_day;
@@ -405,18 +405,14 @@ void App::updateDataPaneelVandaag()
     datSpr1.fillTriangle(tailX, tailY, s1x, s1y, kX, kY, TFT_DARKGREY);
     datSpr1.drawTriangle(tailX, tailY, s2x, s2y, kX, kY, TFT_DARKGREY);
 
+    App::drawRelativeHorizon();
+
     datSpr1.setTextFont(2);
     datSpr1.setTextColor(TFT_SKYBLUE);
     int bft = App::getBeaufort(state.weather.wind_speed);
     datSpr1.drawString(String(bft) + " Bft", kX, kY + kR + 18);
 
-    // --- 4. EXTRA INFO ---
-    // datSpr1.setTextFont(2);
-    // datSpr1.setTextDatum(BL_DATUM);
-    // datSpr1.setTextColor(TFT_LIGHTGREY);
-    // datSpr1.drawString("V: " + String((int)state.weather.humidity) + "% | UV: " + String(state.weather.uvi, 1), 5, 145);
-
-    // Voorbeeld voor in je sprite/render:
+    // --- 4. BAROMETER TREND & TEKST ---
     int xMidden = 10;
     int yMidden = 136;
     if (state.env.baro_trend == 2)
@@ -450,119 +446,10 @@ void App::updateDataPaneelVandaag()
     {
         App::drawISOAlert(120, 122, 20, 0, state.env.is_alert_active);
     }
-
-    // --- 5. DE RELATIEVE HORIZON ---
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo))
-        return;
-
-    int tlX_center = 85 / 2, tlY = 118;
-    float pixelsPerUur = Config::distance_per_hour; // Eventueel SECRET_HORIZON_PIXELS_PER_HOUR uit config
-    uint16_t shadowCol = state.env.is_night_mode ? 0x2104 : TFT_BLACK;
-    uint16_t lineCol = state.env.is_night_mode ? 0x2104 : TFT_DARKGREY; // Kleur van de horizonlijn (matcht met de nachtmodus)
-    float phase = state.weather.today.moon_phase;
-    float r = 5;
-
-    float nuDecimal = timeinfo.tm_hour + (timeinfo.tm_min / 60.0);
-    float distZonOp = state.env.sunrise_local - nuDecimal;
-    float distZonOnder = state.env.sunset_local - nuDecimal;
-    float distMaanOp = state.env.moonrise_local - nuDecimal;
-    float distMaanOnder = state.env.moonset_local - nuDecimal;
-
-    // Correctie voor de datumgrens (als de maan morgenochtend pas ondergaat)
-    if (distMaanOnder < -12.0)
-        distMaanOnder += 24.0;
-    if (distMaanOp < -12.0)
-        distMaanOp += 24.0;
-
-    datSpr1.drawFastHLine(5, tlY + 1, 170, lineCol);
-
-    int xZonOp = tlX_center + (int)(distZonOp * pixelsPerUur);
-    int xZonOnder = tlX_center + (int)(distZonOnder * pixelsPerUur);
-    int xMaanOp = tlX_center + (int)(distMaanOp * pixelsPerUur);
-    int xMaanOnder = tlX_center + (int)(distMaanOnder * pixelsPerUur);
-
-    // Maan op en onder tekenen als ze binnen het zichtbare bereik vallen (0-170 pixels)
-    // Hulpvariabele voor de schaduwkleur (matcht met je horizonlijn)
-    if (xMaanOp > 0 && xMaanOp < 170)
-    {
-        // 1. De basis (volledige maan in goud/wit)
-        datSpr1.fillCircle(xMaanOp, tlY + 1, r, 0xDEFB);
-
-        // 2. De schaduw (vormt de fase)
-        if (phase < 0.5)
-        {
-            // Wassend: schaduw schuift van rechts naar links
-            int offset = map(phase * 1000, 0, 500, r * 2, 0);
-            datSpr1.fillCircle(xMaanOp + offset, tlY + 1, r, shadowCol);
-            datSpr1.drawFastHLine(xMaanOp + offset - r, tlY + 1, (int)(r * 2), lineCol); // Versterk de schaduw met een lijn
-        }
-        else
-        {
-            // Afnemend: schaduw schuift van links naar rechts
-            int offset = map(phase * 1000, 500, 1000, 0, r * 2);
-            datSpr1.fillCircle(xMaanOp - offset, tlY + 1, r, shadowCol);
-            datSpr1.drawFastHLine(xMaanOp - offset - r, tlY + 1, (int)(r * 2), lineCol); // Versterk de schaduw met een lijn
-        }
-    }
-    if (xMaanOnder > 85 && xMaanOnder < 170)
-    {
-        // datSpr1.fillCircle(xMaanOnder, tlY + 1, 4, TFT_CYAN);
-        // 1. De basis (volledige maan in goud/wit)
-        datSpr1.fillCircle(xMaanOnder, tlY + 1, r, TFT_SILVER);
-
-        // 2. De schaduw (vormt de fase)
-        if (phase < 0.5)
-        {
-            // Wassend: schaduw schuift van rechts naar links
-            int offset = map(phase * 1000, 0, 500, r * 2, 0);
-            datSpr1.fillCircle(xMaanOnder + offset, tlY + 2, r - 2, shadowCol);
-            datSpr1.drawFastHLine(xMaanOnder + offset - (r - 2), tlY + 1, (int)((r - 1) * 2), lineCol); // Versterk de schaduw met een lijn
-        }
-        else
-        {
-            // Afnemend: schaduw schuift van links naar rechts
-            int offset = map(phase * 1000, 500, 1000, 0, r * 2);
-            datSpr1.fillCircle(xMaanOnder - offset, tlY + 2, r - 2, shadowCol);
-            datSpr1.drawFastHLine(xMaanOnder - offset - (r - 2), tlY + 1, (int)((r - 1) * 2), lineCol); // Versterk de schaduw met een lijn
-        }
-        datSpr1.fillRect(xMaanOnder - r, tlY + 3, r * 2, r, TFT_BLACK); // Extra versterking van de maanondergang (alsof de maan in de horizon zakt)
-        
-    }
-
-    // Zon op en onder tekenen als ze binnen het zichtbare bereik vallen (0-170 pixels)
-    // als laatste tekenen om overlapping van de maanschaduw te voorkomen.
-    if (xZonOp > 0 && xZonOp < 170)
-    {
-        datSpr1.fillCircle(xZonOp, tlY + 1, r + 1, TFT_WHITE); // De witte 'gloed' rand
-        datSpr1.fillCircle(xZonOp, tlY + 1, r, TFT_YELLOW);    // De gele kern
-        datSpr1.setTextDatum(BC_DATUM);
-        datSpr1.setTextColor(TFT_LIGHTGREY);
-        datSpr1.setTextFont(1);
-        if (xZonOp > 95)
-        {
-            datSpr1.drawString(String(state.env.sunrise_str), xZonOp, tlY - 5);
-        }
-    }
-    if (xZonOnder > tlX_center && xZonOnder < 170)
-    {
-        datSpr1.fillCircle(xZonOnder, tlY + 1, r, TFT_ORANGE);
-        datSpr1.drawFastHLine(xZonOnder - (r * 2), tlY + 1, r * 4, TFT_ORANGE); // Horizonlijn versterken
-        datSpr1.fillRect(xZonOnder - r, tlY + 3, r * 2, r, TFT_BLACK); // Zonsondergang iets meer benadrukken door het te halveren met zwart (alsof de zon in de horizon zakt)
-        datSpr1.setTextDatum(BC_DATUM);
-        datSpr1.setTextColor(TFT_LIGHTGREY);
-        datSpr1.setTextFont(1);
-        if (xZonOnder > tlX_center + 12)
-        {
-            datSpr1.drawString(String(state.env.sunset_str), xZonOnder, tlY - 5);
-        }
-    }
-
-    datSpr1.fillTriangle(tlX_center, tlY - 2, tlX_center - 4, tlY - 8, tlX_center + 4, tlY - 8, TFT_GOLD);
 }
 
 // --- UPDATE FUNCTIE VOOR HET VOORSPELLINGS-PANEEL (3 DAGEN) ---
-void App::updateDataPaneelForecast()
+void App::drawDataPaneelForecast()
 {
     datSpr2.fillSprite(TFT_BLACK); // We gebruiken datSpr voor beide panelen
     datSpr2.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -606,8 +493,8 @@ void App::updateDataPaneelForecast()
     }
 }
 
-void App::updateDataPaneelAlert()
-{
+void App::drawDataPaneelAlert()
+{ // Deze functie wordt nu nog niet gebruikt!
     datSpr3.fillSprite(TFT_BLACK);
     datSpr3.setTextColor(TFT_WHITE, TFT_BLACK);
     datSpr3.setTextDatum(MC_DATUM);
@@ -649,7 +536,7 @@ void App::drawQRCodeOnTFT(const char *data, int x, int y, int scale)
     }
 }
 
-// ---   TEKENFUNCTIES ---
+// --- TEKENFUNCTIES ---
 
 // Tekent een WiFi-indicator met 4 bars, waarbij de kleur en het aantal bars afhankelijk zijn van het gescande signaal (RSSI).
 // De indicator heeft ook een speciale "stand-by" kleur wanneer we in On-Demand mode zitten zonder verbinding.
@@ -772,6 +659,146 @@ void App::drawWeatherIcon(TFT_eSprite &spr, int x, int y, int size, int iconId, 
     }
 }
 
+void App::drawRelativeHorizon()
+{
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo))
+        return;
+
+    int tlX_center = 85 / 2, tlY = 118;
+    float pixelsPerUur = Config::distance_per_hour;
+    uint16_t shadowCol = TFT_BLACK; /*state.env.is_night_mode ? 0x2104 : TFT_BLACK;*/
+    uint16_t lineCol = TFT_DARKGREY; /*state.env.is_night_mode ? 0x2104 : TFT_DARKGREY; // Kleur van de horizonlijn (matcht met de nachtmodus)*/
+    float phase = state.weather.today.moon_phase;
+    float r = 5;
+
+    float nuDecimal = timeinfo.tm_hour + (timeinfo.tm_min / 60.0);
+    float midnightDecimal = 0.0; // 00:00
+    float distZonOp = state.env.sunrise_local - nuDecimal;
+    float distZonOpNext = state.env.sunrise_next_local - nuDecimal;
+    float distZonOnder = state.env.sunset_local - nuDecimal;
+    float distMaanOp = state.env.moonrise_local - nuDecimal;
+    float distMaanOnder = state.env.moonset_local - nuDecimal;
+    float distMaanOnderNext = state.env.moonset_next_local - nuDecimal;
+
+    // Correctie voor de datumgrens (als de maan morgenochtend pas ondergaat)
+    if (distMaanOnder < -12.0)
+        distMaanOnder += 24.0;
+    if (distMaanOp < -12.0)
+        distMaanOp += 24.0;
+
+    datSpr1.drawFastHLine(0, tlY + 1, 170, lineCol);
+
+    int xZonOp = tlX_center + (int)(distZonOp * pixelsPerUur);
+    int xZonOpNext = tlX_center + (int)(distZonOpNext * pixelsPerUur) + (24 * Config::distance_per_hour); // Voor de volgende zonsopgang (morgen)
+    int xZonOnder = tlX_center + (int)(distZonOnder * pixelsPerUur);
+    int xMaanOp = tlX_center + (int)(distMaanOp * pixelsPerUur);
+    int xMaanOnder = tlX_center + (int)(distMaanOnder * pixelsPerUur);
+    int xMaanOnderNext = tlX_center + (int)(distMaanOnderNext * pixelsPerUur);
+
+    // static unsigned long onePixelTick = 0;
+    // if (millis() - onePixelTick > (60*60*1000)/Config::distance_per_hour) // We updaten de horizon alleen als er genoeg tijd is verstreken voor een zichtbare verandering
+    // {
+    // Serial.printf("[HORIZON] Nu: %.2f, ZO: %.2f (x=%d), ZU: %.2f (x=%d), MO: %.2f (x=%d), MU: %.2f (x=%d), ZO_next: %.2f (x=%d), MU_next: %.2f (x=%d)\n",
+    //               nuDecimal, distZonOp, xZonOp, distZonOnder, xZonOnder, distMaanOp, xMaanOp, distMaanOnder, xMaanOnder, distZonOpNext, xZonOpNext, distMaanOnderNext, xMaanOnderNext);
+    // onePixelTick = millis();
+    // }
+
+    // Maan op en onder tekenen als ze binnen het zichtbare bereik vallen (0-170 pixels)
+    // Hulpvariabele voor de schaduwkleur (matcht met je horizonlijn)
+    // OWM foutieve berekening van de maanopgang corrigeren door de volgende maanopgang te gebruiken als deze extreem ver weg is (meer dan 100 pixels links van het zichtbare gebied)
+    if (xMaanOnder <= -100) xMaanOp = xMaanOnderNext; 
+
+    if (xMaanOp > 0 && xMaanOp < 170)
+    {
+        // 1. De basis (volledige maan in goud/wit)
+        datSpr1.fillCircle(xMaanOp, tlY + 1, r, 0xDEFB);
+
+        // 2. De schaduw (vormt de fase)
+        if (phase < 0.5)
+        {
+            // Wassend: schaduw schuift van rechts naar links
+            int offset = map(phase * 1000, 0, 500, 0, r * 2);
+            datSpr1.fillCircle(xMaanOp - offset, tlY + 1, r, shadowCol);
+            datSpr1.drawFastHLine(xMaanOp - offset - r, tlY + 1, (int)(r * 2), lineCol); // Versterk de schaduw met een lijn
+        }
+        else
+        {
+            // Afnemend: schaduw schuift van links naar rechts
+            int offset = map(phase * 1000, 500, 1000, r * 2, 0);
+            datSpr1.fillCircle(xMaanOp + offset, tlY + 1, r, shadowCol);
+            datSpr1.drawFastHLine(xMaanOp + offset - r, tlY + 1, (int)(r * 2), lineCol); // Versterk de schaduw met een lijn
+        }
+    }
+    if (xMaanOnder > tlX_center && xMaanOnder < 170)
+    {
+        // datSpr1.fillCircle(xMaanOnder, tlY + 1, 4, TFT_CYAN);
+        // 1. De basis (volledige maan in goud/wit)
+        datSpr1.fillCircle(xMaanOnder, tlY + 1, r, TFT_SILVER);
+
+        // 2. De schaduw (vormt de fase)
+        if (phase < 0.5)
+        {
+            // Wassend: schaduw schuift van rechts naar links
+            int offset = map(phase * 1000, 0, 500, 0, r * 2);
+            datSpr1.fillCircle(xMaanOnder - offset, tlY + 2, r - 0, shadowCol);
+            datSpr1.drawFastHLine(xMaanOnder - offset - (r - 0), tlY + 1, (int)((r - 1) * 2), lineCol); // Versterk de schaduw met een lijn
+        }
+        else
+        {
+            // Afnemend: schaduw schuift van links naar rechts
+            int offset = map(phase * 1000, 500, 1000, r * 2, 0);
+            datSpr1.fillCircle(xMaanOnder + offset, tlY + 2, r - 0, shadowCol);
+            datSpr1.drawFastHLine(xMaanOnder + offset - (r - 0), tlY + 1, (int)((r - 1) * 2), lineCol); // Versterk de schaduw met een lijn
+        }
+        datSpr1.fillRect(xMaanOnder - r, tlY + 3, r * 2, r, TFT_BLACK); // Extra versterking van de maanondergang (alsof de maan in de horizon zakt)
+        
+    }
+
+    // Zon op en onder tekenen als ze binnen het zichtbare bereik vallen (0-170 pixels)
+    // als laatste tekenen om overlapping van de maanschaduw te voorkomen.
+    if (xZonOp > 0 && xZonOp < 170)
+    {
+        datSpr1.fillCircle(xZonOp, tlY + 1, r + 1, TFT_WHITE); // De witte 'gloed' rand
+        datSpr1.fillCircle(xZonOp, tlY + 1, r, TFT_YELLOW);    // De gele kern
+        datSpr1.setTextDatum(BC_DATUM);
+        datSpr1.setTextColor(TFT_LIGHTGREY);
+        datSpr1.setTextFont(1);
+        if (xZonOp > tlX_center + 15)
+        {
+            datSpr1.drawString(String(state.env.sunrise_str), xZonOp, tlY - 5);
+        }
+    }
+if (xZonOpNext > tlX_center && xZonOpNext < 170)
+    {
+        datSpr1.fillCircle(xZonOpNext, tlY + 1, r + 1, TFT_WHITE); // De witte 'gloed' rand
+        datSpr1.fillCircle(xZonOpNext, tlY + 1, r, TFT_YELLOW);    // De gele kern
+        datSpr1.setTextDatum(BC_DATUM);
+        datSpr1.setTextColor(TFT_LIGHTGREY);
+        datSpr1.setTextFont(1);
+        // if (xZonOpNext > 95)
+        // {
+        //     datSpr1.drawString(String(state.env.sunrise_next_str), xZonOpNext, tlY - 5);
+        // }
+    }
+    if (xZonOnder > tlX_center && xZonOnder < 170)
+    {
+        datSpr1.fillCircle(xZonOnder, tlY + 1, r, TFT_ORANGE);
+        datSpr1.drawFastHLine(xZonOnder - (r * 2), tlY + 1, r * 4, TFT_ORANGE); // Horizonlijn versterken
+        datSpr1.fillRect(xZonOnder - r, tlY + 3, r * 2, r, TFT_BLACK); // Zonsondergang iets meer benadrukken door het te halveren met zwart (alsof de zon in de horizon zakt)
+        datSpr1.setTextDatum(BC_DATUM);
+        datSpr1.setTextColor(TFT_LIGHTGREY);
+        datSpr1.setTextFont(1);
+        if (xZonOnder > tlX_center + 12)
+        {
+            datSpr1.drawString(String(state.env.sunset_str), xZonOnder, tlY - 5);
+        }
+    }
+
+    datSpr1.fillTriangle(tlX_center, tlY - 2, tlX_center - 4, tlY - 8, tlX_center + 4, tlY - 8, TFT_GOLD);
+}
+
+
 void App::updateBirthdayAlertState()
 {
     // Scan je birthdays.txt
@@ -804,8 +831,7 @@ void App::drawPartyPopper(TFT_eSprite &spr, int x, int y, char gender)
         confettiKleur = TFT_CYAN;
     }
     else
-    {
-        // Fallback: Goud/Geel voor onbekend/neutraal
+    { // Fallback: Goud/Geel voor onbekend/neutraal
         hoofdkleur = 0xFBE0; // Goud
         accentkleur = TFT_ORANGE;
         confettiKleur = TFT_YELLOW;
@@ -813,8 +839,7 @@ void App::drawPartyPopper(TFT_eSprite &spr, int x, int y, char gender)
 
     int fase = millis() / 1000 % 3; // Geeft 0, 1 of 2
 
-
-    // De Toeter (Nu met gender-kleuren)
+    // De 'Toeter'
     spr.fillTriangle(x, y + 17, x + 5, y + 3, x + 15, y + 13, accentkleur);
     spr.drawLine(x + 5, y + 3, x + 15, y + 13, hoofdkleur);
     spr.drawLine(x + 5, y + 5, x + 13, y + 13, hoofdkleur);
@@ -1150,7 +1175,7 @@ void App::manageEasterEggTimer()
     {
         int interval = random(15, 120); // Willekeurig interval tussen 15 en 120 minuten
         state.env.next_easter_egg_minute = (huidigeMinuutInDag + interval) % 1440;
-        Serial.printf(F("[EASTER-EGG] Volgende over % d min (omstreeks minuut % d)\n"), interval, state.env.next_easter_egg_minute);
+        // Serial.printf(F("[EASTER-EGG] Volgende over % d min (omstreeks minuut % d)\n"), interval, state.env.next_easter_egg_minute);
     }
 
     // 2. IS HET TIJD? (De Grendel)

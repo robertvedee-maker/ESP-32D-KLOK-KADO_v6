@@ -63,7 +63,6 @@ void App::handleWiFiEco()
     if (magSlapen && !wifiIsGepauzeerd)
     {
         Serial.printf("[NET] ECO: Data is vers, WiFi mag nu slapen...\n");
-        // disableWiFi();
         powerDownWiFi();
         wifiIsGepauzeerd = true;
     }

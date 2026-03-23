@@ -51,13 +51,16 @@ void App::manageTimeFunctions()
     if (state.weather.today.sun_rise > 0)
     {
         state.env.sunrise_local = getDecimalTime((time_t)state.weather.today.sun_rise);
+        state.env.sunrise_next_local = getDecimalTime((time_t)state.weather.today.sun_rise_tomorrow);
         state.env.sunset_local = getDecimalTime((time_t)state.weather.today.sun_set);
 
         // Strings vullen voor de labels (Sunrise)
         int rH = (int)state.env.sunrise_local;
         int rM = (int)((state.env.sunrise_local - rH) * 60);
         snprintf(state.env.sunrise_str, sizeof(state.env.sunrise_str), "%02d:%02d", rH, rM);
-
+        int sHn = (int)state.env.sunrise_next_local;
+        int sMn = (int)((state.env.sunrise_next_local - sHn) * 60);
+        snprintf(state.env.sunrise_next_str, sizeof(state.env.sunrise_next_str), "%02d:%02d", sHn, sMn);
         // Strings vullen voor de labels (Sunset)
         int sH = (int)state.env.sunset_local;
         int sM = (int)((state.env.sunset_local - sH) * 60);
@@ -71,15 +74,16 @@ void App::manageTimeFunctions()
         // Deze variabelen kun je nu direct gebruiken in je distMaanOp berekening
         state.env.moonrise_local = getDecimalTime((time_t)state.weather.today.moon_rise);
         state.env.moonset_local = getDecimalTime((time_t)state.weather.today.moon_set);
+        state.env.moonset_next_local = getDecimalTime((time_t)state.weather.today.moon_set_tomorrow);
     }
-
 
     if (state.env.sunrise_local != lastSunrise)
     {
-        Serial.printf("[TIME] Sunrise: %.2f, Sunset: %.2f, Moonrise: %.2f, Moonset: %.2f\n",
-                      state.env.sunrise_local, state.env.sunset_local,
-                      state.env.moonrise_local, state.env.moonset_local);
         lastSunrise = state.env.sunrise_local;
+        // Serial.printf("[TIME] Sunrise: %.2f, Sunset: %.2f, Moonrise: %.2f, Moonset: %.2f, Sunrise Next: %.2f, Moonset Next: %.2f\n",
+        //               state.env.sunrise_local, state.env.sunset_local,
+        //               state.env.moonrise_local, state.env.moonset_local,
+        //               state.env.sunrise_next_local, state.env.moonset_next_local);
     }
 }
 

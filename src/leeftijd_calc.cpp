@@ -8,7 +8,7 @@
 
 
 // 1. De rauwe rekenaar (vult de buffer)
-void App::vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int Variant)
+void App::selectEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaand, int gJaar, int Variant)
 {
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo))
@@ -102,7 +102,7 @@ void App::vulEasterEggTekst(char *buffer, size_t bufferSize, int gDag, int gMaan
 }
 
 // 2. De Wrapper (haalt data uit de State en bouwt de zin)
-bool App::vulGepersonaliseerdFeitje(char *targetBuffer, size_t bufferSize) {
+bool App::createPersoonlijkFeitje(char *targetBuffer, size_t bufferSize) {
     int gJ, gM, gD;
     String displayNaam = "";
     char g;
@@ -149,7 +149,7 @@ bool App::vulGepersonaliseerdFeitje(char *targetBuffer, size_t bufferSize) {
 
     // 3. Het feitje genereren (gebruikt altijd gD, gM, gJ)
     char factTmp[90];
-    vulEasterEggTekst(factTmp, sizeof(factTmp), gD, gM, gJ, -1);
+    selectEasterEggTekst(factTmp, sizeof(factTmp), gD, gM, gJ, -1);
 
     // 4. Bouw de uiteindelijke zin
     if (isJarige) {

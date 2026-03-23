@@ -158,20 +158,20 @@ void App::drawSetupModeActive()
     tft.fillCircle(200, 10, 4, state.display.touch_indicator_color);
 }
 
-void App::showNetworkInfo()
+void App::drawNetworkInfo()
 {
     tft.fillScreen(TFT_BLACK);
     updateDisplayBrightness(Config::default_brightness);
     tft.drawRoundRect(2, 2, tft.width() - 4, tft.height() - 4, 10, TFT_GREEN);
     tft.drawBitmap(20, 20, image_DolphinSuccess_bits, 108, 57, TFT_WHITE);
-    tft.setTextFont(2);
-    tft.setTextColor(TFT_WHITE);
-    tft.drawString("SYSTEEM START", 140, 30);
+    // tft.setTextFont(2);
+    tft.setTextColor(TFT_GOLD);
+    tft.drawCentreString("SYSTEEM START", 200, 56, 2);
     tft.setTextColor(TFT_SKYBLUE);
-    tft.drawString("mDNS: " + state.network.mdns, 140, 60);
+    tft.drawCentreString("mDNS: " + state.network.mdns, 160, 84, 4);
     tft.setTextColor(TFT_WHITE);
-    tft.drawString("IP: " + WiFi.localIP().toString(), 140, 80);
-    delay(3000); // Laat deze info 3 seconden zien voordat je verder gaat
+    tft.drawCentreString("IP: " + WiFi.localIP().toString(), 160, 120, 4);
+    delay(2000); // Laat deze info 2 seconden zien voordat je verder gaat
 }
 
 // void App::showSetupInstructionPanel()  // momenteel niet gebruikt, de OWM lat lon worden in de setup geinjecteerd vanuit Preferences.h
@@ -205,6 +205,7 @@ void App::drawSystemMonitor()
         tft.drawString("Heap:", 15, 60);
         tft.drawString("MaxBlok:", 210, 60);
         tft.drawString("B-Light:", 15, 80);
+        tft.drawString("OWM:", 210, 80);
         tft.drawString("C-Temp:", 15, 100);
         tft.drawString("Sensoren:", 15, 120);
 
@@ -215,6 +216,8 @@ void App::drawSystemMonitor()
 
     // 2. DYNAMISCHE DATA (Met achtergrondkleur om flikkeren te voorkomen)
     updateDateTimeStrings();
+
+
 
     tft.setTextFont(2);
 
@@ -251,13 +254,27 @@ void App::drawSystemMonitor()
     char tempBuffer[32];
     char sensorBuffer[32];
     char pwmBuffer[32];
-
+    char owmBuffer[20];
+    
     // We voegen de actuele metingen per onderdeel samen in één string
     snprintf(heapBuffer, sizeof(heapBuffer), "%dkB (%dkB min)   ", ESP.getFreeHeap() / 1024, ESP.getMinFreeHeap() / 1024);
     snprintf(maxAllocBuffer, sizeof(maxAllocBuffer), "%dkB   ", ESP.getMaxAllocHeap() / 1024);
     snprintf(tempBuffer, sizeof(tempBuffer), "%.0fC (max %.0fC)  ", state.env.case_temp, Config::system_temp_warning);
     snprintf(sensorBuffer, sizeof(sensorBuffer), "AHT: %.1fC (%.1fC) BMP: %.1f hPa  ", state.env.temp_local, state.env.raw_temp_local, state.env.press_local);
     snprintf(pwmBuffer, sizeof(pwmBuffer), "PWM: %d%%   ", map(state.display.backlight_pwm, 0, 255, 0, 100));
+
+    // --- OWM Status bepalen voor display ---
+    uint16_t owmColor = TFT_WHITE;
+    if (state.network.last_owm_http_code == 200) {
+        snprintf(owmBuffer, sizeof(owmBuffer), "OK!   ");
+        owmColor = TFT_GREEN;
+    } else if (state.network.last_owm_http_code == 0) {
+        snprintf(owmBuffer, sizeof(owmBuffer), "WAIT.. ");
+        owmColor = TFT_YELLOW;
+    } else {
+        snprintf(owmBuffer, sizeof(owmBuffer), "E%d ", state.network.last_owm_http_code);
+        owmColor = TFT_RED;
+    }
 
     tft.setTextColor(TFT_WHITE, TFT_BLACK); // De zwarte achtergrond wast de oude tekst weg
     tft.setTextFont(2);
@@ -280,6 +297,8 @@ void App::drawSystemMonitor()
         tft.setTextColor(TFT_RED, TFT_BLACK);
         tft.drawString("SENSOR FOUT!               ", 85, 120); // Spaties wissen oude tekst
     }
+    tft.setTextColor(owmColor, TFT_BLACK);
+    tft.drawString(owmBuffer, 270, 80); 
 
     // Uptime (onderaan)
     tft.setTextFont(1);
